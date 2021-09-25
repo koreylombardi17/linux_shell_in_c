@@ -7,16 +7,22 @@ typedef struct Buffer Buffer;
 
 // ArrayList architecture
 typedef struct Buffer {
-    int size, cap;
+    	int size, cap;
 	char ** arr;
 } Buffer;
 
+// Data structure prototypes
 Buffer * createBuffer();
 void appendCommand(Buffer *, char *);
 void expand(Buffer *);
+
+// Helper function prototypes
 void printCommands(Buffer *);
 int doesDirectoryExist(char *, struct stat);
 void printString(char *);
+
+// Shell command prototypes
+void whereami(char *);
 
 int main() {
 	// Instantiate and create the buffer to store recent commands
@@ -29,34 +35,24 @@ int main() {
 	// Gets the path to the current working directory
 	char * currentdir = getcwd(currentdir, 100);
 
-	// Test case should pass
-	int status = doesDirectoryExist(currentdir, s);
-	printf("Directory Status = %d\n", status);
 
-	// Test case should fail
-	int falsestatus = doesDirectoryExist("/joe", s);
-	printf("Directory Status = %d\n", falsestatus);
+	// parent pid and child pid get printed
+	// then child starts from the fork and becomes
+	// a parent to a new child?
+	pid_t pid = fork();
+	printf("Parent's pid : %d\n", getppid());
+	printf("Child's pid : %d\n", getpid());
 
-	appendCommand(commandBuffer, "Korey");
-	appendCommand(commandBuffer, "Michael");
-	appendCommand(commandBuffer, "Lombardi");
-	appendCommand(commandBuffer, "is");
-	appendCommand(commandBuffer, "building");
-	appendCommand(commandBuffer, "a");
-	appendCommand(commandBuffer, "custom");
-	appendCommand(commandBuffer, "shell");
-	appendCommand(commandBuffer, "in");
-	appendCommand(commandBuffer, "c");
-	appendCommand(commandBuffer, "programming");
-	appendCommand(commandBuffer, "language");
-
-	printf("size of Buffer = %ld\n", sizeof(commandBuffer));
-	printf("size of arr in Buffer = %ld\n", sizeof(commandBuffer->arr));
-	printf("elements in Buffer = %d\n", commandBuffer->size);
-
-	printCommands(commandBuffer);
-
+	// Working on start application command	
+	// This line of code launches vim from filesystem on eustis.
+	// system("/usr/bin/vim");
+	
 	return 0;
+}
+
+// Prints to the terminal current directory
+void whereami(char * currentdir) {
+	printString(currentdir);
 }
 
 // Create the buffer to store the commands
