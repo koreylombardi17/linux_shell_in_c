@@ -41,14 +41,14 @@ int main() {
 	appendCommand(commandBuffer, "Michael");
 	appendCommand(commandBuffer, "Lombardi");
 	appendCommand(commandBuffer, "is");
-	appendCommand(commandBuffer, "Golden");
-	appendCommand(commandBuffer, "Gloves");
+	appendCommand(commandBuffer, "building");
+	appendCommand(commandBuffer, "a");
+	appendCommand(commandBuffer, "custom");
+	appendCommand(commandBuffer, "shell");
 	appendCommand(commandBuffer, "in");
-	appendCommand(commandBuffer, "the");
-	appendCommand(commandBuffer, "state");
-	appendCommand(commandBuffer, "of");
-	appendCommand(commandBuffer, "Florida");
-	appendCommand(commandBuffer, "2014");
+	appendCommand(commandBuffer, "c");
+	appendCommand(commandBuffer, "programming");
+	appendCommand(commandBuffer, "language");
 
 	printf("size of Buffer = %ld\n", sizeof(commandBuffer));
 	printf("size of arr in Buffer = %ld\n", sizeof(commandBuffer->arr));
