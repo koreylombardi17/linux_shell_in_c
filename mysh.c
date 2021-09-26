@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/wait.h> 
 
 typedef struct Buffer Buffer;
 
@@ -23,31 +24,39 @@ void printString(char *);
 
 // Shell command prototypes
 void whereami(char *);
+void start(char *);
 
 int main() {
-	// Instantiate and create the buffer to store recent commands
+	// Buffer to store recent commands
 	Buffer * commandBuffer;
 	commandBuffer = createBuffer();
 	
-	// Struct that holds metadata about directories
+	// Holds metadata about directories
 	struct stat s;
 	
-	// Gets the path to the current working directory
+	// Path to the current working directory
 	char * currentdir = getcwd(currentdir, 100);
 
+	start("/usr/bin/vim");
 
-	// parent pid and child pid get printed
-	// then child starts from the fork and becomes
-	// a parent to a new child?
-	pid_t pid = fork();
-	printf("Parent's pid : %d\n", getppid());
-	printf("Child's pid : %d\n", getpid());
 
-	// Working on start application command	
-	// This line of code launches vim from filesystem on eustis.
-	// system("/usr/bin/vim");
-	
 	return 0;
+}
+
+// Starts a program with or without parameters
+// TODO: demlimit command string and place in args array
+void start(char * command){
+	int status;
+	char * args[] = {command, NULL};
+
+	pid_t pid = fork();
+	if(pid == -1) {
+		printf("Error forking");
+	} else if(pid == 0) {
+		execv(args[0], args);
+	} else {
+		wait(&status);
+	}
 }
 
 // Prints to the terminal current directory
