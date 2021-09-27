@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/wait.h> 
@@ -21,6 +22,7 @@ void expand(Buffer *);
 void printCommands(Buffer *);
 int doesDirectoryExist(char *, struct stat);
 void printString(char *);
+void commandDelimiter(char [], char [][50]);
 
 // Shell command prototypes
 void whereami(char *);
@@ -37,8 +39,17 @@ int main() {
 	// Path to the current working directory
 	char * currentdir = getcwd(currentdir, 100);
 
-	start("/usr/bin/vim");
+	//whereami(currentdir);
+	//start("/usr/bin/vim");
 
+	char command[50] = "Korey Michael Lombardi";
+	char splitCommand[50][50] = {};
+	commandDelimiter(command, splitCommand);
+
+	printf("%s\n", splitCommand[0]);
+	printf("%s\n", splitCommand[1]);
+	printf("%s\n", splitCommand[2]);
+	printf("%s\n", splitCommand[3]);
 
 	return 0;
 }
@@ -117,3 +128,22 @@ void printString(char * str) {
 	printf("\n");
 }
 
+// TODO: Optimize this function by dynamically allocating array or getting array size
+// of command before passing into function.
+
+// Splits command into seperate strings everywhere there is a space
+void commandDelimiter(char command[], char splitCommand[][50]) {
+	char delimeter [] = " ";
+	char * ptr = strtok(command, delimeter);
+
+	int i = 0;
+	int j = 0;
+	while(ptr != NULL) {
+		while(*ptr != '\0'){
+			splitCommand[i][j++] = *ptr++;
+		}
+		j = 0;
+		i++;
+		ptr = strtok(NULL, delimeter);
+	}
+}
