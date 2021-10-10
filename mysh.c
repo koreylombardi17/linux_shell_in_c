@@ -15,8 +15,9 @@ typedef struct Buffer {
 
 // Data structure prototypes
 Buffer * createBuffer();
-void appendCommand(Buffer *, char *);
-void expand(Buffer *);
+void appendCommandToBuffer(Buffer *, char *);
+void expandBuffer(Buffer *);
+char** createArgsArray(int);
 
 // Helper function prototypes
 void printCommands(Buffer *);
@@ -24,7 +25,6 @@ int doesDirectoryExist(char *, struct stat);
 void printString(char *);
 char** commandDelimiter(char []);
 int countArgs(char []);
-char** createArgsArray(int);
 
 // Shell command prototypes
 void whereami(char *);
@@ -136,13 +136,13 @@ Buffer * createBuffer() {
 }
 
 // Append command to Buffer
-void appendCommand(Buffer * buffer, char * command) {
+void appendCommandToBuffer(Buffer * buffer, char * command) {
     // Location where command will be appended
 	int index = buffer->size;
 
 	// If buffer reaches capacity, expand size of buffer
 	if(index >= buffer->cap) {
-		expand(buffer);
+		expandBuffer(buffer);
 	}
 	// Append command, increment size by 1
 	buffer->arr[index] = command;
@@ -150,7 +150,7 @@ void appendCommand(Buffer * buffer, char * command) {
 }
 
 // Reallocate memory by a multiple of two
-void expand(Buffer * buffer) {
+void expandBuffer(Buffer * buffer) {
     buffer->cap = buffer->cap * 2;
 	char ** largerArr = realloc(buffer->arr, buffer->cap * sizeof(char *));
 	buffer->arr = largerArr;
