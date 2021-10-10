@@ -22,7 +22,9 @@ void expand(Buffer *);
 void printCommands(Buffer *);
 int doesDirectoryExist(char *, struct stat);
 void printString(char *);
-void commandDelimiter(char [], char [][50]);
+char** commandDelimiter(char []);
+int countArgs(char []);
+char** createArgsArray(int);
 
 // Shell command prototypes
 void whereami(char *);
@@ -30,44 +32,93 @@ void start(char *);
 
 int main() {
 	// Buffer to store recent commands
-	Buffer * commandBuffer;
-	commandBuffer = createBuffer();
-	
-	// Holds metadata about directories
-	struct stat s;
-	
+	Buffer * commandBuffer = createBuffer();
 	// Path to the current working directory
 	char * currentdir = getcwd(currentdir, 100);
+	// Holds metadata about directories
+	struct stat s;
 
-	//whereami(currentdir);
-	//start("/usr/bin/vim");
-
-	char command[50] = "Korey Michael Lombardi";
-	char splitCommand[50][50] = {};
-	commandDelimiter(command, splitCommand);
-
-	printf("%s\n", splitCommand[0]);
-	printf("%s\n", splitCommand[1]);
-	printf("%s\n", splitCommand[2]);
-	printf("%s\n", splitCommand[3]);
+	start("/usr/bin/vim");
 
 	return 0;
 }
 
 // Starts a program with or without parameters
-// TODO: demlimit command string and place in args array
 void start(char * command){
+	// pid uses this value behind the scenes
 	int status;
-	char * args[] = {command, NULL};
-
+	char ** usersArgs = commandDelimiter(command);
 	pid_t pid = fork();
+
 	if(pid == -1) {
 		printf("Error forking");
 	} else if(pid == 0) {
-		execv(args[0], args);
+		// Jumps into new child process
+		execv(usersArgs[0], usersArgs);
 	} else {
+		// Waits for child process to terminate before proceeding
 		wait(&status);
 	}
+}
+
+// Splits a command into an array of all of its args
+char ** commandDelimiter(char command[]) {
+	char delimeter [] = " ";
+	char argument [50];
+	int argsIndex = 0;
+	int i = 0;
+	
+	// Pointer used to iterate through through command stopping at all spaces
+	char * ptr = strtok(command, delimeter);
+	int numberArgs = countArgs(command);
+	char** usersArgs = createArgsArray(numberArgs);
+
+	// Split string wherever there are spaces
+	while(ptr != NULL) {
+		// Extracting string
+		while(*ptr != '\0'){
+			argument[i++] = *ptr++;
+		}
+		strcpy(usersArgs[argsIndex++], argument);
+		// Pointing to next string
+		ptr = strtok(NULL, delimeter);
+		i = 0;
+		// Clearing out argument string
+		while(argument[i] != '\0') {
+			argument[i++] = '\0';
+		}
+	}
+	// exec() requires NULL as last value of array
+	usersArgs[argsIndex] = NULL;
+	return usersArgs;
+}
+
+// Returns the number of args contained in command
+int countArgs(char command[]) {
+	char delimeter[] = " ";
+	int argsCounter = 0;
+	char** createArgsArray(int numberArgs);
+	// Pointer used to iterate through through command, stopping at all spaces
+	char * ptr = strtok(command, delimeter);	
+	// Count number of strings in command	
+	while(ptr != NULL) {
+		while(*ptr != '\0'){
+			ptr++;
+		}
+		argsCounter++;
+		ptr = strtok(NULL, delimeter);
+	}
+	// +1 for NULL value at end of the array
+	return (argsCounter+1);
+}
+
+// Function allocates memory for array of args
+char** createArgsArray(int numberArgs) {
+	char** argsArray = (char**)malloc(sizeof(char*));
+	for(int i = 0; i < numberArgs; i++) {
+		argsArray[i] = (char*)malloc(50*sizeof(char));
+	}
+	return argsArray;
 }
 
 // Prints to the terminal current directory
@@ -126,24 +177,4 @@ int doesDirectoryExist(char * directory, struct stat s) {
 void printString(char * str) {
 	printf("%s", str);
 	printf("\n");
-}
-
-// TODO: Optimize this function by dynamically allocating array or getting array size
-// of command before passing into function.
-
-// Splits command into seperate strings everywhere there is a space
-void commandDelimiter(char command[], char splitCommand[][50]) {
-	char delimeter [] = " ";
-	char * ptr = strtok(command, delimeter);
-
-	int i = 0;
-	int j = 0;
-	while(ptr != NULL) {
-		while(*ptr != '\0'){
-			splitCommand[i][j++] = *ptr++;
-		}
-		j = 0;
-		i++;
-		ptr = strtok(NULL, delimeter);
-	}
 }
