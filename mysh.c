@@ -20,10 +20,13 @@ void expandBuffer(Buffer*);
 char** createArgsArray(int, int);
 
 // Helper function prototypes
+void insideShell(Buffer*);
+char* getUserCommand();
+int executeCommand(char *);
 void printCommands(Buffer*);
 int doesDirectoryExist(char*, struct stat);
 void printString(char*);
-char** commandDelimiter(char*);
+char** commandDelimeter(char*);
 int countArgs(char*);
 int countLongestArg(char*);
 
@@ -36,16 +39,77 @@ int dalek(int);
 int main() {
 	// Buffer to store recent commands
 	Buffer * commandBuffer = createBuffer();
+	
 	// Path to the current working directory
 	char * currentdir = getcwd(currentdir, 100);
+	
 	// Holds metadata about directories
 	struct stat s;
 
-	start("/usr/bin/vim");
+	insideShell(commandBuffer);
 
-	// Dont forget to free memory
-	
+	//start("/usr/bin/vim");
+	// Dont forget to free memory	
 	return 0;
+}
+
+void insideShell(Buffer* commandBuffer) {
+	int isCommandValid;
+	char* command;
+
+	while(1) {
+		isCommandValid = 0;
+		printf("#");
+		command = getUserCommand();
+		appendCommandToBuffer(commandBuffer, command);
+		isCommandValid = executeCommand(command);
+		if(!isCommandValid) {
+			printf("Invalid command. Please try again.");	
+		}	
+	}
+}
+
+//Todo: Split command into 2 elements array. The first part is the users command that will be used in strcmp. 
+//	The second part gets sent to command delimeter, which then goes to the actual funtion itself. 
+// 	Fix string delimeter from clipping first letter. Run in debug mode to fix this.
+int executeCommand(char* command) {
+	// Last element of array pointer will be null
+	char** commandArray = commandDelimeter(command);
+
+	printf("commandArray[0] = %s", commandArray[0]);	
+	if(strcmp(commandArray[0], "start") == 0) {
+		printf("in start function\n");
+		return 1;
+	} else {
+		return 0;
+	}
+	return 0;
+}
+
+char* getUserCommand() {
+	int stringSize = 64;
+        int substringSize = 64;
+        int substringIndex = 0;
+
+        char substring[substringSize];
+        char* string = (char*)malloc(stringSize*sizeof(char));
+        char c = getchar();
+
+        while(c!='\n') {
+                if(substringIndex == (substringSize - 1)) {
+                        strcat(string, substring);
+                        substringIndex = 0;     
+                        memset(substring, '\0', substringSize);
+                        if(substringIndex == (stringSize-1)) {
+                                stringSize *= 2;
+                                string = realloc(string, sizeof(char)*stringSize);
+                        }
+                } 
+                c = getchar();
+                substring[substringIndex++] = c;
+        }
+        strcat(string, substring);
+        return string;	
 }
 
 // Prints to the terminal current directory
@@ -60,7 +124,7 @@ void whereami(char* currentdir) {
 void start(char * command){
 	// pid uses this value behind the scenes
 	int status;
-	char ** usersArgs = commandDelimiter(command);
+	char ** usersArgs = commandDelimeter(command);
 	pid_t pid = fork();
 
 	if(pid == -1) {
@@ -85,7 +149,8 @@ int dalek(int pid){
 }
 
 // Splits a command into an array of all of its args
-char** commandDelimiter(char* command) {
+// TODO: this function is clipping the first letter of the command, run in debug mode 
+char** commandDelimeter(char* command) {
 	char delimeter [] = " ";
 	char argument [50];
 	int argsIndex = 0;
@@ -178,7 +243,7 @@ Buffer* createBuffer() {
 
 // Append command to Buffer
 void appendCommandToBuffer(Buffer* buffer, char* command) {
-    // Location where command will be appended
+   	// Location where command will be appended
 	int index = buffer->size;
 
 	// If buffer reaches capacity, expand size of buffer
