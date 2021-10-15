@@ -45,8 +45,9 @@ int main() {
 	
 	// Holds metadata about directories
 	struct stat s;
-
-	insideShell(commandBuffer);
+	
+	// Start the shell interface
+	//insideShell(commandBuffer);
 
 	//start("/usr/bin/vim");
 	// Dont forget to free memory	
@@ -72,13 +73,21 @@ void insideShell(Buffer* commandBuffer) {
 //Todo: Split command into 2 elements array. The first part is the users command that will be used in strcmp. 
 //	The second part gets sent to command delimeter, which then goes to the actual funtion itself. 
 // 	Fix string delimeter from clipping first letter. Run in debug mode to fix this.
-int executeCommand(char* command) {
-	// Last element of array pointer will be null
-	char** commandArray = commandDelimeter(command);
+int executeCommand(char* userInput) {
+	// Max possible command length is 10 characters
+	char command[11];
+	int i = 0;
 
-	printf("commandArray[0] = %s", commandArray[0]);	
-	if(strcmp(commandArray[0], "start") == 0) {
-		printf("in start function\n");
+	// Extract commmand from user input
+	while(*userInput != ' ') {
+		command[i++] = *userInput++;
+	}
+	command[i] = '\0';
+	*userInput++; 
+
+	char** argsArray = commandDelimeter(userInput);
+	if(strcmp(command, "start") == 0) {
+		start(command);
 		return 1;
 	} else {
 		return 0;
@@ -88,32 +97,32 @@ int executeCommand(char* command) {
 
 char* getUserCommand() {
 	int stringSize = 64;
-        int substringSize = 64;
-        int substringIndex = 0;
-
-        char substring[substringSize];
-        char* string = (char*)malloc(stringSize*sizeof(char));
-        char c = getchar();
-
-        while(c!='\n') {
-                if(substringIndex == (substringSize - 1)) {
-                        strcat(string, substring);
-                        substringIndex = 0;     
-                        memset(substring, '\0', substringSize);
-                        if(substringIndex == (stringSize-1)) {
-                                stringSize *= 2;
-                                string = realloc(string, sizeof(char)*stringSize);
-                        }
-                } 
-                c = getchar();
-                substring[substringIndex++] = c;
-        }
-        strcat(string, substring);
-        return string;	
+    int substringSize = 64;
+    int substringIndex = 0;
+    char substring[substringSize+1];
+	char* string = (char*)malloc(stringSize*sizeof(char));
+	char c;
+	do {
+		if(substringIndex == (substringSize - 1)) {
+			strcat(string, substring);
+			substringIndex = 0;     
+			memset(substring, '\0', substringSize);
+			if(substringIndex == (stringSize-1)) {
+					stringSize *= 2;
+					string = realloc(string, sizeof(char)*stringSize);
+			}
+		} 
+		c = getchar();
+		substring[substringIndex++] = c;
+        } while(c != '\n');
+	substring[substringIndex] = '\0';
+    strcat(string, substring);
+    return string;	
 }
 
 // Prints to the terminal current directory
 // TODO: Make function return int
+
 void whereami(char* currentdir) {
 	printString(currentdir);
 }
@@ -121,10 +130,19 @@ void whereami(char* currentdir) {
 // Starts a program with or without parameters
 // TODO: Make function return int
 // TODO: Test function with multiple args
-void start(char * command){
+void start(char* command){
 	// pid uses this value behind the scenes
 	int status;
-	char ** usersArgs = commandDelimeter(command);
+	int i;
+
+	char** usersArgs = commandDelimeter(command);
+	int numberArgs = countArgs(command);
+	char* writableUsersArgs[numberArgs];
+	for(i = 0; i < numberArgs; i++) {
+		strcpy(writableUsersArgs[i], usersArgs[i]);
+	}
+	writableUsersArgs[i] = NULL;
+
 	pid_t pid = fork();
 
 	if(pid == -1) {
@@ -149,34 +167,51 @@ int dalek(int pid){
 }
 
 // Splits a command into an array of all of its args
-// TODO: this function is clipping the first letter of the command, run in debug mode 
 char** commandDelimeter(char* command) {
-	char delimeter [] = " ";
 	char argument [50];
 	int argsIndex = 0;
-	int i = 0;
+	int counter = 0;
+	int i;
+
+	while(*command != '\0') {
+		counter++;
+		*command++;
+	}
+	command -= counter;
 	
-	// Pointer used to iterate through through command stopping at all spaces
-	char* ptr = strtok(command, delimeter);
+	char writableCommand[counter];
+	for(i = 0; i < counter; i++) {
+		writableCommand[i] = *command++;
+	}
+	command -= counter;
+
 	int numberArgs = countArgs(command);
 	int maxArgLength = countLongestArg(command);
 	char** usersArgs = createArgsArray(numberArgs, maxArgLength);
 
+	// Pointer used to iterate through through command stopping at all spaces
+	char* token = strtok(writableCommand, " ");
+	
+	i = 0;
 	// Split string wherever there are spaces
-	while(ptr != NULL) {
+	while(token != NULL) {
 		// Extracting string
-		while(*ptr != '\0'){
-			argument[i++] = *ptr++;
+		while(*token != '\n' && *token != '\0'){
+			argument[i++] = *token++;
 		}
+		token -= i;
+		argument[i] = '\0';
 		strcpy(usersArgs[argsIndex++], argument);
 		// Pointing to next string
-		ptr = strtok(NULL, delimeter);
+		token = strtok(NULL, " ");
 		i = 0;
 		// Clearing out argument string
 		while(argument[i] != '\0') {
 			argument[i++] = '\0';
 		}
+		i = 0;
 	}
+
 	// exec() requires NULL as last value of array
 	usersArgs[argsIndex] = NULL;
 	return usersArgs;
@@ -184,17 +219,12 @@ char** commandDelimeter(char* command) {
 
 // Returns the number of args contained in command
 int countArgs(char* command) {
-	char delimeter[] = " ";
 	int argsCounter = 0;
-	// Pointer used to iterate through through command, stopping at all spaces
-	char * ptr = strtok(command, delimeter);	
-	// Count number of strings in command	
-	while(ptr != NULL) {
-		while(*ptr != '\0'){
-			ptr++;
+		
+	while(*command != '\0') {
+		if(*command++ == ' '){
+			argsCounter++;
 		}
-		argsCounter++;
-		ptr = strtok(NULL, delimeter);
 	}
 	// +1 for NULL value at end of the array
 	return (argsCounter+1);
@@ -205,19 +235,16 @@ int countLongestArg(char* command) {
 	char delimeter[] = " ";
 	int maxArgLength = 0;
 	int argLength = 0;
-	// Pointer used to iterate through through command, stopping at all spaces
-	char * ptr = strtok(command, delimeter);	
-	// Count number of strings in command	
-	while(ptr != NULL) {
-		while(*ptr != '\0'){
-			ptr++;
+	
+	while(*command != '\0'){
+		if(*command++ == ' ') {
+			if(argLength > maxArgLength) {
+				maxArgLength = argLength;
+			}
+			argLength = 0;
+		} else {
 			argLength++;
 		}
-		if(argLength > maxArgLength) {
-			maxArgLength = argLength;
-		}
-		argLength = 0;
-		ptr = strtok(NULL, delimeter);
 	}
 	// +1 for NULL character value at end of string
 	return (maxArgLength+1);
@@ -225,7 +252,7 @@ int countLongestArg(char* command) {
 
 // Function allocates memory for array of args
 char** createArgsArray(int numberArgs, int maxArgLength) {
-	char** argsArray = (char**)malloc(sizeof(char*));
+	char** argsArray = (char**)malloc(numberArgs * sizeof(char*));
 	for(int i = 0; i < numberArgs; i++) {
 		argsArray[i] = (char*)malloc(maxArgLength*sizeof(char));
 	}
