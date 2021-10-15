@@ -47,9 +47,9 @@ int main() {
 	struct stat s;
 	
 	// Start the shell interface
-	//insideShell(commandBuffer);
+	insideShell(commandBuffer);
 
-	//start("/usr/bin/vim");
+	start("/usr/bin/vim");
 	// Dont forget to free memory	
 	return 0;
 }
@@ -87,7 +87,7 @@ int executeCommand(char* userInput) {
 
 	char** argsArray = commandDelimeter(userInput);
 	if(strcmp(command, "start") == 0) {
-		start(command);
+		start(userInput);
 		return 1;
 	} else {
 		return 0;
@@ -133,15 +133,31 @@ void whereami(char* currentdir) {
 void start(char* command){
 	// pid uses this value behind the scenes
 	int status;
+	int maxArgLength = 0;
+	int argLength = 0;
 	int i;
 
 	char** usersArgs = commandDelimeter(command);
 	int numberArgs = countArgs(command);
-	char* writableUsersArgs[numberArgs];
+	char* writableUsersArgs[numberArgs+1];
+	for(i = 0; i < numberArgs; i++) {
+		argLength = countLongestArg(usersArgs[i]);
+		if(argLength > maxArgLength) {
+			maxArgLength = argLength;
+		}
+	}
+	for(i = 0; i < numberArgs + 1; i++) {
+		writableUsersArgs[i] = (char*)malloc(maxArgLength*sizeof(char));
+	}
+	printf("number args = %d\n", numberArgs);
 	for(i = 0; i < numberArgs; i++) {
 		strcpy(writableUsersArgs[i], usersArgs[i]);
 	}
+	printf("i = %d\n", i);
+	printf("usersArgs[i] = %s\n", usersArgs[i]);
 	writableUsersArgs[i] = NULL;
+	printf("writableUsersArgs[0] = %s\n", writableUsersArgs[0]);
+	printf("writableUsersArgs[1] = %s\n", writableUsersArgs[1]);
 
 	pid_t pid = fork();
 
@@ -149,7 +165,7 @@ void start(char* command){
 		printf("Error forking");
 	} else if(pid == 0) {
 		// Jumps into new child process
-		execv(usersArgs[0], usersArgs);
+		execv(writableUsersArgs[0], writableUsersArgs);
 	} else {
 		// Waits for child process to terminate before proceeding
 		wait(&status);
@@ -162,7 +178,7 @@ int background(char* command) {
 }
 
 // TODO: Implement function
-int dalek(int pid){
+int idalek(int pid){
 
 }
 
@@ -179,10 +195,11 @@ char** commandDelimeter(char* command) {
 	}
 	command -= counter;
 	
-	char writableCommand[counter];
+	char writableCommand[counter+1];
 	for(i = 0; i < counter; i++) {
 		writableCommand[i] = *command++;
 	}
+	writableCommand[i] = '\0';
 	command -= counter;
 
 	int numberArgs = countArgs(command);
@@ -219,20 +236,17 @@ char** commandDelimeter(char* command) {
 
 // Returns the number of args contained in command
 int countArgs(char* command) {
-	int argsCounter = 0;
-		
+	int argsCounter = 1;	
 	while(*command != '\0') {
 		if(*command++ == ' '){
 			argsCounter++;
 		}
 	}
-	// +1 for NULL value at end of the array
-	return (argsCounter+1);
+	return argsCounter;
 }
 
 // Returns the length of the longest arg
 int countLongestArg(char* command) {
-	char delimeter[] = " ";
 	int maxArgLength = 0;
 	int argLength = 0;
 	
