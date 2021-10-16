@@ -31,8 +31,8 @@ int countArgs(char*);
 int countLongestArg(char*);
 
 // Shell command prototypes
-void whereami(char*);
-void start(char*);
+int whereami(char*);
+int start(char*);
 int background(char*);
 int dalek(int);
 
@@ -45,12 +45,14 @@ int main() {
 	
 	// Holds metadata about directories
 	struct stat s;
-	
+
+//	start("/usr/bin/vim");
+
 	// Start the shell interface
 	insideShell(commandBuffer);
 
-	start("/usr/bin/vim");
 	// Dont forget to free memory	
+	
 	return 0;
 }
 
@@ -70,105 +72,112 @@ void insideShell(Buffer* commandBuffer) {
 	}
 }
 
-//Todo: Split command into 2 elements array. The first part is the users command that will be used in strcmp. 
-//	The second part gets sent to command delimeter, which then goes to the actual funtion itself. 
-// 	Fix string delimeter from clipping first letter. Run in debug mode to fix this.
 int executeCommand(char* userInput) {
 	// Max possible command length is 10 characters
-	char command[11];
-	int i = 0;
+	char command[11];	
+	int index = 0;
 
 	// Extract commmand from user input
+	// Command is the first part of the users input up to the first space
 	while(*userInput != ' ') {
-		command[i++] = *userInput++;
+		command[index++] = *userInput++;
 	}
-	command[i] = '\0';
+	command[index] = '\0';
 	*userInput++; 
 
 	char** argsArray = commandDelimeter(userInput);
 	if(strcmp(command, "start") == 0) {
-		start(userInput);
-		return 1;
-	} else {
-		return 0;
+		return start(userInput);
 	}
 	return 0;
 }
 
+// Returns array of user's input text
 char* getUserCommand() {
 	int stringSize = 64;
     int substringSize = 64;
-    int substringIndex = 0;
+	int substringIndex = 0;
     char substring[substringSize+1];
-	char* string = (char*)malloc(stringSize*sizeof(char));
+	char* stringRet = (char*)malloc(stringSize*sizeof(char));
 	char c;
+	// Dynamically storing user's command
 	do {
+		// Case when substring memory is full
+		// Append substring to string and clear substring's memory
 		if(substringIndex == (substringSize - 1)) {
-			strcat(string, substring);
+			strcat(stringRet, substring);
 			substringIndex = 0;     
 			memset(substring, '\0', substringSize);
+			// Case when string memory is full
+			// Reallocate memory by a factor of 2
 			if(substringIndex == (stringSize-1)) {
 					stringSize *= 2;
-					string = realloc(string, sizeof(char)*stringSize);
+					stringRet = realloc(stringRet, sizeof(char)*stringSize);
 			}
 		} 
 		c = getchar();
 		substring[substringIndex++] = c;
         } while(c != '\n');
 	substring[substringIndex] = '\0';
-    strcat(string, substring);
-    return string;	
+    strcat(stringRet, substring);
+    return stringRet;	
 }
 
 // Prints to the terminal current directory
-// TODO: Make function return int
-
-void whereami(char* currentdir) {
-	printString(currentdir);
+int whereami(char* currentdir) {
+	if(currentdir != NULL) {
+		printString(currentdir);
+		return 1;
+	} else {
+		return -1;
+	} 
 }
 
 // Starts a program with or without parameters
-// TODO: Make function return int
+// Returns 0 when child process starts, Returns 1 when child is finshed and parent is finished waiting
 // TODO: Test function with multiple args
-void start(char* command){
-	// pid uses this value behind the scenes
+int start(char* command){
+	// pid uses status's value behind the scenes
 	int status;
 	int maxArgLength = 0;
 	int argLength = 0;
-	int i;
+	int index;
 
+	// Split the user's command into seperate strings wherever the command has spaces
 	char** usersArgs = commandDelimeter(command);
 	int numberArgs = countArgs(command);
-	char* writableUsersArgs[numberArgs+1];
-	for(i = 0; i < numberArgs; i++) {
-		argLength = countLongestArg(usersArgs[i]);
+	// Calculate maxArgLength to allocate correct amount of memory
+	for(index = 0; index < numberArgs; index++) {
+		argLength = countLongestArg(usersArgs[index]);
 		if(argLength > maxArgLength) {
 			maxArgLength = argLength;
 		}
 	}
-	for(i = 0; i < numberArgs + 1; i++) {
-		writableUsersArgs[i] = (char*)malloc(maxArgLength*sizeof(char));
+	// Allocate memory for the array that gets passed to exec() function
+	char* writableUsersArgs[numberArgs+1];
+	for(index = 0; index < numberArgs + 1; index++) {
+		writableUsersArgs[index] = (char*)malloc(maxArgLength*sizeof(char));
 	}
-	printf("number args = %d\n", numberArgs);
-	for(i = 0; i < numberArgs; i++) {
-		strcpy(writableUsersArgs[i], usersArgs[i]);
+	// Copy the strings from the read only array to a writable array of strings
+	for(index = 0; index < numberArgs; index++) {
+		strcpy(writableUsersArgs[index], usersArgs[index]);
 	}
-	printf("i = %d\n", i);
-	printf("usersArgs[i] = %s\n", usersArgs[i]);
-	writableUsersArgs[i] = NULL;
-	printf("writableUsersArgs[0] = %s\n", writableUsersArgs[0]);
-	printf("writableUsersArgs[1] = %s\n", writableUsersArgs[1]);
-
+	// Last entry of array must be NULL for exec() function to work properly
+	writableUsersArgs[index] = NULL;
+	
+	// Create a child process
 	pid_t pid = fork();
-
 	if(pid == -1) {
 		printf("Error forking");
+		return -1;
 	} else if(pid == 0) {
 		// Jumps into new child process
 		execv(writableUsersArgs[0], writableUsersArgs);
+		return 0;
 	} else {
 		// Waits for child process to terminate before proceeding
 		wait(&status);
+		return 1;
 	}
 }
 
@@ -183,29 +192,27 @@ int idalek(int pid){
 }
 
 // Splits a command into an array of all of its args
-char** commandDelimeter(char* command) {
+char** commandDelimeter(char* inputCommand) {
 	char argument [50];
 	int argsIndex = 0;
-	int counter = 0;
 	int i;
-
-	while(*command != '\0') {
-		counter++;
-		*command++;
-	}
-	command -= counter;
+	int commandLength = strlen(inputCommand);
 	
-	char writableCommand[counter+1];
-	for(i = 0; i < counter; i++) {
-		writableCommand[i] = *command++;
+	// Writable array that the command will be written to 
+	char writableCommand[commandLength+1];
+	for(i = 0; i < commandLength; i++) {
+		writableCommand[i] = *inputCommand++;
 	}
 	writableCommand[i] = '\0';
-	command -= counter;
+	// Postion pointer back to first element of inputCommand array
+	inputCommand -= commandLength;
 
-	int numberArgs = countArgs(command);
-	int maxArgLength = countLongestArg(command);
+	// Calculate number of args inputCommand has
+	int numberArgs = countArgs(inputCommand);
+	// Calculate the max length of all the args 
+	int maxArgLength = countLongestArg(inputCommand);
+	// Function allocates the array's memory based on the number of args and the max arg length
 	char** usersArgs = createArgsArray(numberArgs, maxArgLength);
-
 	// Pointer used to iterate through through command stopping at all spaces
 	char* token = strtok(writableCommand, " ");
 	
@@ -216,8 +223,9 @@ char** commandDelimeter(char* command) {
 		while(*token != '\n' && *token != '\0'){
 			argument[i++] = *token++;
 		}
-		token -= i;
 		argument[i] = '\0';
+		// Position token pointer back to its first char element 
+		token -= i;
 		strcpy(usersArgs[argsIndex++], argument);
 		// Pointing to next string
 		token = strtok(NULL, " ");
@@ -236,10 +244,14 @@ char** commandDelimeter(char* command) {
 
 // Returns the number of args contained in command
 int countArgs(char* command) {
-	int argsCounter = 1;	
-	while(*command != '\0') {
-		if(*command++ == ' '){
-			argsCounter++;
+	int argsCounter = 1;
+	if(command == NULL) {
+		return 0;
+	} else {	
+		while(*command != '\0') {
+			if(*command++ == ' '){
+				argsCounter++;
+			}
 		}
 	}
 	return argsCounter;
@@ -310,17 +322,17 @@ void printCommands(Buffer* buffer) {
 	}
 }
 
-// Returns 1 if directory exist, returns 0 if does NOT exist
+// Returns 1 if directory exist, returns -1 if does NOT exist
 int doesDirectoryExist(char* directory, struct stat s) {
 	int status = stat(directory, &s);
 	if(status == -1) {
-		return 0;
+		return -1;
 	} else {
 		return 1;
 	}
 }
 
-// Print a string
+// Prints a string
 void printString(char* str) {
 	printf("%s", str);
 	printf("\n");
