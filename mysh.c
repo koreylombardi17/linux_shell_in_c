@@ -13,40 +13,43 @@ typedef struct Buffer {
 } Buffer;
 
 // Data structure prototypes
-Buffer * createBuffer();
+Buffer * createCommandBuffer();
+Buffer* clearCommandBuffer(Buffer*);
 void appendCommandToBuffer(Buffer*, char*);
-void expandBuffer(Buffer*);
+void expandCommandBuffer(Buffer*);
 char** createArgsArray(int, int);
 
 // Helper function prototypes
 void insideShell(Buffer*);
 char* getUserCommand();
-int executeCommand(char *);
-void printCommands(Buffer*);
+int executeCommand(Buffer*, char*);
 int doesDirectoryExists(char*);
 void printString(char*);
 char** commandDelimeter(char*);
 int countArgs(char*);
 int countLongestArg(char*);
+int writeToFile(Buffer*);// Need to implement
 
 // Shell command prototypes
 int movetodir(char*);
 int whereami();
-int start(char*);
-int background(char*);
-int dalek(int);
-void byebye();
+int start(char*);// Need to test multiple args
+int background(char*);// Need to implement
+int dalek(int);// Need to implement
+int printHistory(Buffer*);
+int clearHistory(Buffer*, char*);// Need to clear file
+void byebye();// Need to write commands to a file 
 
 char* currentdir;
 
 int main() {
 	// Buffer to store recent commands
-	Buffer * commandBuffer = createBuffer();
+	Buffer * commandBuffer = createCommandBuffer();
 	// Path to the current working directory
-	currentdir = getcwd(currentdir, 100);
+	currentdir = getcwd(currentdir, 100);	
 	// Start the shell interface
 	insideShell(commandBuffer);
-
+	
 
 	// Dont forget to free memory	
 	
@@ -56,13 +59,12 @@ int main() {
 void insideShell(Buffer* commandBuffer) {
 	int isCommandValid;
 	char* command;
-
 	while(1) {
 		isCommandValid = 0;
 		printf("#");
 		command = getUserCommand();
 		appendCommandToBuffer(commandBuffer, command);
-		isCommandValid = executeCommand(command);
+		isCommandValid = executeCommand(commandBuffer, command);
 		if(!isCommandValid) {
 			printf("Invalid command. Please try again.\n");	
 		}
@@ -70,7 +72,7 @@ void insideShell(Buffer* commandBuffer) {
 	}
 }
 
-int executeCommand(char* userInput) {
+int executeCommand(Buffer* commandBuffer, char* userInput) {
 	// Max possible command length is 10 characters
 	char command[11];
 	int index = 0;
@@ -103,13 +105,17 @@ int executeCommand(char* userInput) {
 			return movetodir(args);
 		}else if(strcmp(command, "start") == 0) {
 			return start(args);
+		}else if(strcmp(command, "history") == 0) {
+			return clearHistory(commandBuffer, args);
 		}
 	} else {
 		char** argsArray = commandDelimeter(userInput);
 		// Execute function
 		if(strcmp(command, "whereami") == 0) {
 			return whereami();
-		} else if(strcmp(command, "byebye") == 0) {
+		} else if(strcmp(command, "history") == 0) {
+			return printHistory(commandBuffer);
+		}else if(strcmp(command, "byebye") == 0) {
 			byebye();
 		}
 	}
@@ -135,8 +141,8 @@ char* getUserCommand() {
 			// Case when string memory is full
 			// Reallocate memory by a factor of 2
 			if(substringIndex == (stringSize-1)) {
-					stringSize *= 2;
-					stringRet = realloc(stringRet, sizeof(char)*stringSize);
+				stringSize *= 2;
+				stringRet = realloc(stringRet, sizeof(char)*stringSize);
 			}
 		} 
 		c = getchar();
@@ -163,6 +169,7 @@ int movetodir(char* directory) {
 int whereami() {
 	if(currentdir != NULL) {
 		printString(currentdir);
+		printf("\n");
 		return 1;
 	} else {
 		return -1;
@@ -219,18 +226,45 @@ int start(char* command){
 
 // TODO: Implement function
 int background(char* command) {
-
+	return 0;
 }
 
 // TODO: Implement function
 int dalek(int pid){
+	return 0;
+}
 
+int printHistory(Buffer* commandBuffer) {
+	if(commandBuffer == NULL) {
+		return 0;
+	} else {
+		int index = 0;
+		for(int i = (commandBuffer->size - 1); i >= 0; i--) {
+			printf("%d: ", index++);
+			printString(commandBuffer->arr[i]);
+		}	
+	}
+	return 1;
+}
+
+int clearHistory(Buffer* commandBuffer, char* arg) {
+	if(commandBuffer == NULL || strcmp("-c", arg) != 0) {
+		return 0;
+	} else {
+		commandBuffer = clearCommandBuffer(commandBuffer);
+	}
+	return 1;
 }
 
 // Exits the shell and saves the command history to a file
 // TODO: write the command history to a file
 void byebye() {
 	exit(0);
+}
+
+// TODO: Implement function
+int writeToFile(Buffer* commandBuffer) {
+	return 0;
 }
 
 // Splits a command into an array of all of its args
@@ -328,40 +362,40 @@ char** createArgsArray(int numberArgs, int maxArgLength) {
 }
 
 // Create the buffer to store the commands
-Buffer* createBuffer() {
+Buffer* createCommandBuffer() {
 	Buffer * ret = calloc(1, sizeof(Buffer));
 	ret->size = 0;
 	ret->cap = 8;
 	ret->arr = calloc(ret->cap, sizeof(char *));
 	return ret;
 }
+Buffer* clearCommandBuffer(Buffer* commandBuffer){
+	free(commandBuffer->arr);
+	commandBuffer->size = 0;
+	commandBuffer->cap = 8;
+	commandBuffer->arr = calloc(commandBuffer->cap, sizeof(char *));
+	return commandBuffer;
+}
 
 // Append command to Buffer
-void appendCommandToBuffer(Buffer* buffer, char* command) {
+void appendCommandToBuffer(Buffer* commandBuffer, char* command) {
    	// Location where command will be appended
-	int index = buffer->size;
+	int index = commandBuffer->size;
 
 	// If buffer reaches capacity, expand size of buffer
-	if(index >= buffer->cap) {
-		expandBuffer(buffer);
+	if(index >= commandBuffer->cap) {
+		expandCommandBuffer(commandBuffer);
 	}
 	// Append command, increment size by 1
-	buffer->arr[index] = command;
-	buffer->size++;
+	commandBuffer->arr[index] = command;
+	commandBuffer->size++;
 }
 
 // Reallocate memory by a multiple of two
-void expandBuffer(Buffer* buffer) {
-    buffer->cap = buffer->cap * 2;
-	char** largerArr = realloc(buffer->arr, buffer->cap * sizeof(char *));
-	buffer->arr = largerArr;
-}
-
-// Print the Commands 
-void printCommands(Buffer* buffer) {
-	for(int i = 0; i < buffer->size; i++) {
-		printString(buffer->arr[i]);
-	}
+void expandCommandBuffer(Buffer* commandBuffer) {
+    commandBuffer->cap = commandBuffer->cap * 2;
+	char** largerArr = realloc(commandBuffer->arr, commandBuffer->cap * sizeof(char *));
+	commandBuffer->arr = largerArr;
 }
 
 // Returns 1 if directory exist, returns 0 if does NOT exist
@@ -375,5 +409,5 @@ int doesDirectoryExists(char* directory) {
 
 // Prints a string
 void printString(char* str) {
-	printf("%s\n", str);
+	printf("%s", str);
 }
