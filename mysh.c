@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/stat.h>
 #include <sys/wait.h> 
 
 typedef struct Buffer Buffer;
@@ -24,32 +23,30 @@ void insideShell(Buffer*);
 char* getUserCommand();
 int executeCommand(char *);
 void printCommands(Buffer*);
-int doesDirectoryExist(char*, struct stat);
+int doesDirectoryExists(char*);
 void printString(char*);
 char** commandDelimeter(char*);
 int countArgs(char*);
 int countLongestArg(char*);
 
 // Shell command prototypes
-int whereami(char*);
+int movetodir(char*);
+int whereami();
 int start(char*);
 int background(char*);
 int dalek(int);
+void byebye();
+
+char* currentdir;
 
 int main() {
 	// Buffer to store recent commands
 	Buffer * commandBuffer = createBuffer();
-	
 	// Path to the current working directory
-	char * currentdir = getcwd(currentdir, 100);
-	
-	// Holds metadata about directories
-	struct stat s;
-
-//	start("/usr/bin/vim");
-
+	currentdir = getcwd(currentdir, 100);
 	// Start the shell interface
 	insideShell(commandBuffer);
+
 
 	// Dont forget to free memory	
 	
@@ -67,27 +64,54 @@ void insideShell(Buffer* commandBuffer) {
 		appendCommandToBuffer(commandBuffer, command);
 		isCommandValid = executeCommand(command);
 		if(!isCommandValid) {
-			printf("Invalid command. Please try again.");	
-		}	
+			printf("Invalid command. Please try again.\n");	
+		}
+		isCommandValid = 0;
 	}
 }
 
 int executeCommand(char* userInput) {
 	// Max possible command length is 10 characters
-	char command[11];	
+	char command[11];
 	int index = 0;
+	int i;
 
 	// Extract commmand from user input
 	// Command is the first part of the users input up to the first space
-	while(*userInput != ' ') {
+	while(*userInput != ' ' && *userInput != '\n') {
 		command[index++] = *userInput++;
 	}
-	command[index] = '\0';
-	*userInput++; 
+	command[index] = '\0'; 
 
-	char** argsArray = commandDelimeter(userInput);
-	if(strcmp(command, "start") == 0) {
-		return start(userInput);
+	//If userInput has args, else userInput has 0 args
+	if(*userInput != '\n'){
+		*userInput++;
+		index = 0;
+		// Get the number of remaining elements in userInput 
+		while(*userInput++ != '\n') {
+			index++;
+		}
+		userInput -= (index+1);
+		char args[index+1];
+		// Extract '\n' from the end of userInput
+		for(i = 0; i < index; i++) {
+			args[i] = *userInput++;
+		}
+		args[i] = '\0';
+		// Execute function
+		if(strcmp(command, "movetodir") == 0) {
+			return movetodir(args);
+		}else if(strcmp(command, "start") == 0) {
+			return start(args);
+		}
+	} else {
+		char** argsArray = commandDelimeter(userInput);
+		// Execute function
+		if(strcmp(command, "whereami") == 0) {
+			return whereami();
+		} else if(strcmp(command, "byebye") == 0) {
+			byebye();
+		}
 	}
 	return 0;
 }
@@ -95,9 +119,9 @@ int executeCommand(char* userInput) {
 // Returns array of user's input text
 char* getUserCommand() {
 	int stringSize = 64;
-    int substringSize = 64;
+	int substringSize = 64;
 	int substringIndex = 0;
-    char substring[substringSize+1];
+	char substring[substringSize+1];
 	char* stringRet = (char*)malloc(stringSize*sizeof(char));
 	char c;
 	// Dynamically storing user's command
@@ -119,12 +143,24 @@ char* getUserCommand() {
 		substring[substringIndex++] = c;
         } while(c != '\n');
 	substring[substringIndex] = '\0';
-    strcat(stringRet, substring);
-    return stringRet;	
+	strcat(stringRet, substring);
+	return stringRet;	
+}
+
+// If directory exists, currentdir gets assigned the string that gets passed in
+int movetodir(char* directory) {
+	int directoryExists = doesDirectoryExists(directory);
+	if(directoryExists) {
+		strcpy(currentdir, directory);
+		return 1;
+	} else {
+		printf("Error, directory does not exists. Please try again\n");
+		return 0;
+	}
 }
 
 // Prints to the terminal current directory
-int whereami(char* currentdir) {
+int whereami() {
 	if(currentdir != NULL) {
 		printString(currentdir);
 		return 1;
@@ -187,8 +223,14 @@ int background(char* command) {
 }
 
 // TODO: Implement function
-int idalek(int pid){
+int dalek(int pid){
 
+}
+
+// Exits the shell and saves the command history to a file
+// TODO: write the command history to a file
+void byebye() {
+	exit(0);
 }
 
 // Splits a command into an array of all of its args
@@ -322,18 +364,16 @@ void printCommands(Buffer* buffer) {
 	}
 }
 
-// Returns 1 if directory exist, returns -1 if does NOT exist
-int doesDirectoryExist(char* directory, struct stat s) {
-	int status = stat(directory, &s);
-	if(status == -1) {
-		return -1;
-	} else {
+// Returns 1 if directory exist, returns 0 if does NOT exist
+int doesDirectoryExists(char* directory) {
+	if(access(directory, F_OK) == 0){
 		return 1;
+	} else {
+		return 0;
 	}
 }
 
 // Prints a string
 void printString(char* str) {
-	printf("%s", str);
-	printf("\n");
+	printf("%s\n", str);
 }
