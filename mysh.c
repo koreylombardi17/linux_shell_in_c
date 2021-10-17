@@ -20,15 +20,17 @@ void expandCommandBuffer(Buffer*);
 char** createArgsArray(int, int);
 
 // Helper function prototypes
-void insideShell(Buffer*);
+void insideShell(FILE*, Buffer*);
 char* getUserCommand();
-int executeCommand(Buffer*, char*);
+int executeCommand(FILE*, Buffer*, char*);
 int doesDirectoryExists(char*);
 void printString(char*);
 char** commandDelimeter(char*);
 int countArgs(char*);
 int countLongestArg(char*);
-int writeToFile(Buffer*);// Need to implement
+int writeToFile(FILE*, const char*, Buffer*);
+int appendFile(FILE*, const char*, Buffer*);
+int loadCommandFileToBuffer(); // Need to implement
 
 // Shell command prototypes
 int movetodir(char*);
@@ -37,18 +39,21 @@ int start(char*);// Need to test multiple args
 int background(char*);// Need to implement
 int dalek(int);// Need to implement
 int printHistory(Buffer*);
-int clearHistory(Buffer*, char*);// Need to clear file
-void byebye();// Need to write commands to a file 
+int clearHistory(Buffer*, char*);
+void byebye();
 
 char* currentdir;
+const char* commandFile = "recent_commands.txt";
 
 int main() {
 	// Buffer to store recent commands
 	Buffer * commandBuffer = createCommandBuffer();
+	// Pointer used for file manipulation
+	FILE* fptr;
 	// Path to the current working directory
 	currentdir = getcwd(currentdir, 100);	
 	// Start the shell interface
-	insideShell(commandBuffer);
+	insideShell(fptr, commandBuffer);
 	
 
 	// Dont forget to free memory	
@@ -56,7 +61,8 @@ int main() {
 	return 0;
 }
 
-void insideShell(Buffer* commandBuffer) {
+// Shell's interface
+void insideShell(FILE* fptr, Buffer* commandBuffer) {
 	int isCommandValid;
 	char* command;
 	while(1) {
@@ -64,7 +70,7 @@ void insideShell(Buffer* commandBuffer) {
 		printf("#");
 		command = getUserCommand();
 		appendCommandToBuffer(commandBuffer, command);
-		isCommandValid = executeCommand(commandBuffer, command);
+		isCommandValid = executeCommand(fptr, commandBuffer, command);
 		if(!isCommandValid) {
 			printf("Invalid command. Please try again.\n");	
 		}
@@ -72,10 +78,12 @@ void insideShell(Buffer* commandBuffer) {
 	}
 }
 
-int executeCommand(Buffer* commandBuffer, char* userInput) {
+// Function gets called inside the shell
+int executeCommand(FILE* fptr, Buffer* commandBuffer, char* userInput) {
 	// Max possible command length is 10 characters
 	char command[11];
 	int index = 0;
+	int userInputIndex = 0;
 	int i;
 
 	// Extract commmand from user input
@@ -84,10 +92,12 @@ int executeCommand(Buffer* commandBuffer, char* userInput) {
 		command[index++] = *userInput++;
 	}
 	command[index] = '\0'; 
+	userInputIndex = index;
 
 	//If userInput has args, else userInput has 0 args
 	if(*userInput != '\n'){
 		*userInput++;
+		userInputIndex++;
 		index = 0;
 		// Get the number of remaining elements in userInput 
 		while(*userInput++ != '\n') {
@@ -100,22 +110,33 @@ int executeCommand(Buffer* commandBuffer, char* userInput) {
 			args[i] = *userInput++;
 		}
 		args[i] = '\0';
-		// Execute function
+		userInputIndex += index;
+		userInput -= (userInputIndex);
+		// Execute function that has args
 		if(strcmp(command, "movetodir") == 0) {
 			return movetodir(args);
 		}else if(strcmp(command, "start") == 0) {
 			return start(args);
 		}else if(strcmp(command, "history") == 0) {
-			return clearHistory(commandBuffer, args);
+			int historyClearedSuccessfully = clearHistory(commandBuffer, args);
+			if(!writeToFile(fptr, commandFile, commandBuffer)){
+				printf("Error writing command to file.\n");
+			}
+			appendCommandToBuffer(commandBuffer, userInput);
+			return historyClearedSuccessfully;
 		}
 	} else {
 		char** argsArray = commandDelimeter(userInput);
-		// Execute function
+		// Execute function with 0 args
 		if(strcmp(command, "whereami") == 0) {
 			return whereami();
 		} else if(strcmp(command, "history") == 0) {
 			return printHistory(commandBuffer);
 		}else if(strcmp(command, "byebye") == 0) {
+			if(!appendFile(fptr, commandFile, commandBuffer)) {
+				printf("Error writing recent commands to file.\n");
+				byebye();
+			}
 			byebye();
 		}
 	}
@@ -262,8 +283,32 @@ void byebye() {
 	exit(0);
 }
 
-// TODO: Implement function
-int writeToFile(Buffer* commandBuffer) {
+// Returns 1 if success, returns 0 if failed
+int writeToFile(FILE* fptr, const char* commandFile, Buffer* commandBuffer) {
+	fptr = fopen(commandFile, "w");
+	for(int i = 0; i < commandBuffer->size; i++) {
+		fprintf(fptr, "%s", commandBuffer->arr[i]);
+	}
+	if(fclose(fptr) == 0) {
+		return 1;
+	}
+	return 0;
+}
+
+// Returns 1 if success, returns 0 if failed
+int appendFile(FILE* fptr, const char* commandFile, Buffer* commandBuffer) {
+	fptr = fopen(commandFile, "a");
+	for(int i = 0; i < commandBuffer->size; i++) {
+		fprintf(fptr, "%s", commandBuffer->arr[i]);
+	}
+	if(fclose(fptr) == 0) {
+		return 1;
+	}
+	return 0;
+}
+
+// Loads the user's recent commands into the command buffer
+int loadCommandFileToBuffer() {
 	return 0;
 }
 
