@@ -8,7 +8,7 @@ typedef struct Buffer Buffer;
 
 // ArrayList architecture
 typedef struct Buffer {
-    	int size, cap;
+    int size, cap;
 	char** arr;
 } Buffer;
 
@@ -23,6 +23,8 @@ char** createArgsArray(int, int);
 void insideShell(FILE*, Buffer*);
 char* getUserCommand();
 int executeCommand(FILE*, Buffer*, char*);
+int executeCommandWithArgs(char*, char*, Buffer*, FILE*, int);
+int executeCommandNoArgs(char*, char*, Buffer*, FILE*);
 int doesDirectoryExists(char*);
 void printString(char*);
 char** commandDelimeter(char*);
@@ -30,7 +32,7 @@ int countArgs(char*);
 int countLongestArg(char*);
 int writeToFile(FILE*, const char*, Buffer*);
 int appendFile(FILE*, const char*, Buffer*);
-int loadCommandFileToBuffer(); // Need to implement
+void loadCommandFileToBuffer(FILE*, Buffer*);
 
 // Shell command prototypes
 int movetodir(char*);
@@ -45,13 +47,22 @@ void byebye();
 char* currentdir;
 const char* commandFile = "recent_commands.txt";
 
+// TODO: Debug, Only sometimes I'm getting weird values when appending to file. 
+// TODO: Debug, Program breaks when storing very large command.
+
 int main() {
 	// Buffer to store recent commands
 	Buffer * commandBuffer = createCommandBuffer();
+	
 	// Pointer used for file manipulation
-	FILE* fptr;
+	FILE* fptr;	
+
+	// Need to create a file if one doesnt exists. right now program is crashing when no file exists.
+	loadCommandFileToBuffer(fptr, commandBuffer);
+
 	// Path to the current working directory
 	currentdir = getcwd(currentdir, 100);	
+
 	// Start the shell interface
 	insideShell(fptr, commandBuffer);
 	
@@ -79,12 +90,12 @@ void insideShell(FILE* fptr, Buffer* commandBuffer) {
 }
 
 // Function gets called inside the shell
+// Returns 1 on successful execution, returns 0 on failure
 int executeCommand(FILE* fptr, Buffer* commandBuffer, char* userInput) {
 	// Max possible command length is 10 characters
 	char command[11];
 	int index = 0;
 	int userInputIndex = 0;
-	int i;
 
 	// Extract commmand from user input
 	// Command is the first part of the users input up to the first space
@@ -92,82 +103,117 @@ int executeCommand(FILE* fptr, Buffer* commandBuffer, char* userInput) {
 		command[index++] = *userInput++;
 	}
 	command[index] = '\0'; 
-	userInputIndex = index;
+	// Index used to position pointer back to its first character in userInput
+	userInputIndex = index+1;
 
-	//If userInput has args, else userInput has 0 args
-	if(*userInput != '\n'){
-		*userInput++;
-		userInputIndex++;
-		index = 0;
-		// Get the number of remaining elements in userInput 
-		while(*userInput++ != '\n') {
-			index++;
-		}
-		userInput -= (index+1);
-		char args[index+1];
-		// Extract '\n' from the end of userInput
-		for(i = 0; i < index; i++) {
-			args[i] = *userInput++;
-		}
-		args[i] = '\0';
-		userInputIndex += index;
-		userInput -= (userInputIndex);
-		// Execute function that has args
-		if(strcmp(command, "movetodir") == 0) {
-			return movetodir(args);
-		}else if(strcmp(command, "start") == 0) {
-			return start(args);
-		}else if(strcmp(command, "history") == 0) {
-			int historyClearedSuccessfully = clearHistory(commandBuffer, args);
-			if(!writeToFile(fptr, commandFile, commandBuffer)){
-				printf("Error writing command to file.\n");
-			}
-			appendCommandToBuffer(commandBuffer, userInput);
-			return historyClearedSuccessfully;
-		}
+	//If userInput has no args, else userInput has args
+	if(*userInput == '\n') {
+		return executeCommandNoArgs(userInput, command, commandBuffer, fptr);
 	} else {
-		char** argsArray = commandDelimeter(userInput);
-		// Execute function with 0 args
-		if(strcmp(command, "whereami") == 0) {
-			return whereami();
-		} else if(strcmp(command, "history") == 0) {
-			return printHistory(commandBuffer);
-		}else if(strcmp(command, "byebye") == 0) {
-			if(!appendFile(fptr, commandFile, commandBuffer)) {
-				printf("Error writing recent commands to file.\n");
-				byebye();
-			}
-			byebye();
-		}
+		return executeCommandWithArgs(userInput, command, commandBuffer, fptr, userInputIndex);
 	}
 	return 0;
 }
 
-// Returns array of user's input text
+// Function executes user's command that contains args 
+// Returns 1 on success, returns 0 on failure
+int executeCommandWithArgs(char* userInput, char* command, 
+							Buffer* commandBuffer, FILE* fptr, int userInputIndex) {
+	// Currently pointing to char value of space. Position userInput to next letter
+	*userInput++;
+	int index = 0;
+	int i;
+	
+	// Get the number of remaining elements in userInput 
+	while(*userInput++ != '\n') {
+		index++;
+	}
+	// Position userInput pointer to it's first char of it's args
+	userInput -= (index+1);
+	char args[index+1];
+	
+	// Extract '\n' from the end of userInput
+	for(i = 0; i < index; i++) {
+		args[i] = *userInput++;
+	}
+	args[i] = '\0';
+	// Total number of chars in original userInput
+	userInputIndex += index;
+	// Position userInput pointer to its first char of the original userInput
+	userInput -= (userInputIndex);
+	
+	// Enter shell function that contains args
+	if(strcmp(command, "movetodir") == 0) {
+		return movetodir(args);
+	}else if(strcmp(command, "start") == 0) {
+		return start(args);
+	}else if(strcmp(command, "history") == 0) {
+		int historyClearedSuccessfully = clearHistory(commandBuffer, args);
+		if(historyClearedSuccessfully){
+			// Checking for errors when appending file
+			if(!writeToFile(fptr, commandFile, commandBuffer)){
+				printf("Error writing command to file.\n");
+			} else {
+				appendCommandToBuffer(commandBuffer, userInput);
+				return historyClearedSuccessfully;
+			}
+		} else {
+			return 0;
+		}
+	}
+}
+
+// Function executes user's command that has 0 args 
+// Returns 1 on success, returns 0 on failure
+int executeCommandNoArgs(char* userInput, char* command, Buffer* commandBuffer, FILE* fptr) {
+	char** argsArray = commandDelimeter(userInput);
+	// Enter shell function with no args
+	if(strcmp(command, "whereami") == 0) {
+		return whereami();
+	} else if(strcmp(command, "history") == 0) {
+		return printHistory(commandBuffer);
+	}else if(strcmp(command, "byebye") == 0) {
+		// Checking for errors when appending file
+		if(!appendFile(fptr, commandFile, commandBuffer)) {
+			// Print error message and exit shell
+			printf("Error writing recent commands to file.\n");
+			byebye();
+		}
+		// Exit the shell
+		byebye();
+	}
+	return 0;
+}
+
+// Returns dynamic array of user's input text
 char* getUserCommand() {
 	int stringSize = 64;
 	int substringSize = 64;
+	int stringIndex = 0;
 	int substringIndex = 0;
 	char substring[substringSize+1];
 	char* stringRet = (char*)malloc(stringSize*sizeof(char));
+	stringRet = strcpy(stringRet, "");
 	char c;
 	// Dynamically storing user's command
 	do {
 		// Case when substring memory is full
 		// Append substring to string and clear substring's memory
 		if(substringIndex == (substringSize - 1)) {
-			strcat(stringRet, substring);
-			substringIndex = 0;     
+			strcat(stringRet, substring);     
 			memset(substring, '\0', substringSize);
 			// Case when string memory is full
 			// Reallocate memory by a factor of 2
-			if(substringIndex == (stringSize-1)) {
+			if(stringIndex == (stringSize-1)) {
 				stringSize *= 2;
-				stringRet = realloc(stringRet, sizeof(char)*stringSize);
+				stringRet = (char*)realloc(stringRet, sizeof(char)*stringSize);
 			}
+			substringIndex = 0;
+			stringIndex++;
 		} 
 		c = getchar();
 		substring[substringIndex++] = c;
+		stringIndex++;
         } while(c != '\n');
 	substring[substringIndex] = '\0';
 	strcat(stringRet, substring);
@@ -175,6 +221,7 @@ char* getUserCommand() {
 }
 
 // If directory exists, currentdir gets assigned the string that gets passed in
+// Returns 1 if the directory exists, returns 0 if not
 int movetodir(char* directory) {
 	int directoryExists = doesDirectoryExists(directory);
 	if(directoryExists) {
@@ -186,7 +233,7 @@ int movetodir(char* directory) {
 	}
 }
 
-// Prints to the terminal current directory
+// Prints to the terminal the current working directory
 int whereami() {
 	if(currentdir != NULL) {
 		printString(currentdir);
@@ -255,6 +302,7 @@ int dalek(int pid){
 	return 0;
 }
 
+// Returns 1 on printing command history successfully, return 0 on failure
 int printHistory(Buffer* commandBuffer) {
 	if(commandBuffer == NULL) {
 		return 0;
@@ -268,6 +316,7 @@ int printHistory(Buffer* commandBuffer) {
 	return 1;
 }
 
+// Returns 1 if history cleared successfully, returns 0 on error
 int clearHistory(Buffer* commandBuffer, char* arg) {
 	if(commandBuffer == NULL || strcmp("-c", arg) != 0) {
 		return 0;
@@ -277,12 +326,12 @@ int clearHistory(Buffer* commandBuffer, char* arg) {
 	return 1;
 }
 
-// Exits the shell and saves the command history to a file
-// TODO: write the command history to a file
+// Exits the shell
 void byebye() {
 	exit(0);
 }
 
+// Writes to a file, deleting any prior text contained in the file. If no file, it will create one.
 // Returns 1 if success, returns 0 if failed
 int writeToFile(FILE* fptr, const char* commandFile, Buffer* commandBuffer) {
 	fptr = fopen(commandFile, "w");
@@ -295,6 +344,7 @@ int writeToFile(FILE* fptr, const char* commandFile, Buffer* commandBuffer) {
 	return 0;
 }
 
+// Appends the existing file or creates a new file if one doesn't exists
 // Returns 1 if success, returns 0 if failed
 int appendFile(FILE* fptr, const char* commandFile, Buffer* commandBuffer) {
 	fptr = fopen(commandFile, "a");
@@ -308,8 +358,47 @@ int appendFile(FILE* fptr, const char* commandFile, Buffer* commandBuffer) {
 }
 
 // Loads the user's recent commands into the command buffer
-int loadCommandFileToBuffer() {
-	return 0;
+void loadCommandFileToBuffer(FILE* fptr, Buffer* commandBuffer) {
+	int stringSize = 64;
+	int substringSize = 64;
+	int substringIndex;
+	char substring[substringSize+1];
+	char* stringRet;
+	fptr = fopen(commandFile, "r");
+	char c = fgetc(fptr);
+
+	// Dynamically storing user's command
+	while(c != EOF) {
+		substringIndex = 0;
+		stringRet = (char*)malloc(stringSize*sizeof(char));
+		do {
+			// Case when substring memory is full
+			// Append substring to string and clear substring's memory
+			if(substringIndex == (substringSize - 1)) {
+				strcat(stringRet, substring);
+				substringIndex = 0;     
+				memset(substring, '\0', substringSize);
+				// Case when string memory is full
+				// Reallocate memory by a factor of 2
+				if(substringIndex == (stringSize-1)) {
+					stringSize *= 2;
+					stringRet = realloc(stringRet, sizeof(char)*stringSize);
+				}
+			} 
+			substring[substringIndex++] = c;
+			c = fgetc(fptr);
+			} while(c != '\n');
+		substring[substringIndex++] = c;
+		substring[substringIndex] = '\0';
+		// Concatenate stringRet with substring
+		strcat(stringRet, substring);
+		appendCommandToBuffer(commandBuffer, stringRet);
+		c = fgetc(fptr);
+		// Free memory for both arrays
+		memset(substring, '\0', substringSize);
+		free(stringRet);
+	}
+	fclose(fptr);
 }
 
 // Splits a command into an array of all of its args
@@ -412,13 +501,23 @@ Buffer* createCommandBuffer() {
 	ret->size = 0;
 	ret->cap = 8;
 	ret->arr = calloc(ret->cap, sizeof(char *));
+	for(int i = 0; i < ret->cap; i++) {
+		ret->arr[i] = calloc(100, sizeof(char));
+	}
 	return ret;
 }
+
+// Clears the command buffer
 Buffer* clearCommandBuffer(Buffer* commandBuffer){
-	free(commandBuffer->arr);
+	for(int i = 0; i < commandBuffer->cap; i++) {
+		free(commandBuffer->arr[i]);
+	}
 	commandBuffer->size = 0;
 	commandBuffer->cap = 8;
 	commandBuffer->arr = calloc(commandBuffer->cap, sizeof(char *));
+	for(int i = 0; i < commandBuffer->cap; i++) {
+		commandBuffer->arr[i] = calloc(100, sizeof(char));
+	}
 	return commandBuffer;
 }
 
@@ -426,21 +525,29 @@ Buffer* clearCommandBuffer(Buffer* commandBuffer){
 void appendCommandToBuffer(Buffer* commandBuffer, char* command) {
    	// Location where command will be appended
 	int index = commandBuffer->size;
+	int stringLength = strlen(command);
 
 	// If buffer reaches capacity, expand size of buffer
 	if(index >= commandBuffer->cap) {
 		expandCommandBuffer(commandBuffer);
 	}
+
+	// commandBuffer->arr[i] has 100 chars allocated. If stringLength is > 99, reallocate
+	if(stringLength > 99) {
+		commandBuffer->arr[index] = (char*)realloc(commandBuffer->arr[index], (stringLength+1)*sizeof(char));
+	}
 	// Append command, increment size by 1
-	commandBuffer->arr[index] = command;
+	strcpy(commandBuffer->arr[index], command);
 	commandBuffer->size++;
 }
 
 // Reallocate memory by a multiple of two
 void expandCommandBuffer(Buffer* commandBuffer) {
     commandBuffer->cap = commandBuffer->cap * 2;
-	char** largerArr = realloc(commandBuffer->arr, commandBuffer->cap * sizeof(char *));
-	commandBuffer->arr = largerArr;
+	commandBuffer->arr = realloc(commandBuffer->arr, commandBuffer->cap * sizeof(char *));
+	for(int i = commandBuffer->size; i < commandBuffer->cap; i++) {
+		commandBuffer->arr[i] = calloc(100, sizeof(char));
+	}
 }
 
 // Returns 1 if directory exist, returns 0 if does NOT exist
@@ -452,7 +559,7 @@ int doesDirectoryExists(char* directory) {
 	}
 }
 
-// Prints a string
+// Prints a string without newline since user's input contains new line
 void printString(char* str) {
 	printf("%s", str);
 }
