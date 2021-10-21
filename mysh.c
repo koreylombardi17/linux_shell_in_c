@@ -8,7 +8,7 @@ typedef struct Buffer Buffer;
 
 // ArrayList architecture
 typedef struct Buffer {
-    int size, cap;
+    int size, initialSize, cap;
 	char** arr;
 } Buffer;
 
@@ -30,9 +30,9 @@ void printString(char*);
 char** commandDelimeter(char*);
 int countArgs(char*);
 int countLongestArg(char*);
-int writeToFile(FILE*, const char*, Buffer*);
+int clearFile(FILE*, const char*, Buffer*);
 int appendFile(FILE*, const char*, Buffer*);
-void loadCommandFileToBuffer(FILE*, Buffer*);
+void loadPreviousCommands(FILE*, Buffer*);
 
 // Shell command prototypes
 int movetodir(char*);
@@ -42,23 +42,18 @@ int background(char*);// Need to implement
 int dalek(int);// Need to implement
 int printHistory(Buffer*);
 int clearHistory(Buffer*, char*);
+int replay(); // Need to implement
 void byebye();
 
 char* currentdir;
 const char* commandFile = "recent_commands.txt";
 
-// TODO: Debug, Only sometimes I'm getting weird values when appending to file. 
-// TODO: Debug, Program breaks when storing very large command.
-
 int main() {
 	// Buffer to store recent commands
 	Buffer * commandBuffer = createCommandBuffer();
-	
+
 	// Pointer used for file manipulation
 	FILE* fptr;	
-
-	// Need to create a file if one doesnt exists. right now program is crashing when no file exists.
-	loadCommandFileToBuffer(fptr, commandBuffer);
 
 	// Path to the current working directory
 	currentdir = getcwd(currentdir, 100);	
@@ -76,6 +71,10 @@ int main() {
 void insideShell(FILE* fptr, Buffer* commandBuffer) {
 	int isCommandValid;
 	char* command;
+
+	// Need to create a file if one doesnt exists. right now program is crashing when no file exists.
+	loadPreviousCommands(fptr, commandBuffer);
+	
 	while(1) {
 		isCommandValid = 0;
 		printf("#");
@@ -151,8 +150,8 @@ int executeCommandWithArgs(char* userInput, char* command,
 		int historyClearedSuccessfully = clearHistory(commandBuffer, args);
 		if(historyClearedSuccessfully){
 			// Checking for errors when appending file
-			if(!writeToFile(fptr, commandFile, commandBuffer)){
-				printf("Error writing command to file.\n");
+			if(!clearFile(fptr, commandFile, commandBuffer)){
+				printf("Error clearing command file.\n");
 			} else {
 				appendCommandToBuffer(commandBuffer, userInput);
 				return historyClearedSuccessfully;
@@ -293,12 +292,23 @@ int start(char* command){
 }
 
 // TODO: Implement function
+// Similar to the start command, but it immediately prints the PID of the program it 
+// started, and returns the prompt. Returns 1 on successful start, 0 on failure
 int background(char* command) {
 	return 0;
 }
 
 // TODO: Implement function
+// Immediately terminate the program with the specific PID
+// Returns 1 on successfull kill, returns 0 on failure
 int dalek(int pid){
+	return 0;
+}
+
+// TODO: Implement function 
+// Re-executes the command labeled with its number in the history 
+// Returns 1 on succesful execution, 0 on failure
+int replay() {
 	return 0;
 }
 
@@ -331,13 +341,10 @@ void byebye() {
 	exit(0);
 }
 
-// Writes to a file, deleting any prior text contained in the file. If no file, it will create one.
+// Deletes any prior text contained in the file. If no file, it will create one.
 // Returns 1 if success, returns 0 if failed
-int writeToFile(FILE* fptr, const char* commandFile, Buffer* commandBuffer) {
+int clearFile(FILE* fptr, const char* commandFile, Buffer* commandBuffer) {
 	fptr = fopen(commandFile, "w");
-	for(int i = 0; i < commandBuffer->size; i++) {
-		fprintf(fptr, "%s", commandBuffer->arr[i]);
-	}
 	if(fclose(fptr) == 0) {
 		return 1;
 	}
@@ -348,7 +355,7 @@ int writeToFile(FILE* fptr, const char* commandFile, Buffer* commandBuffer) {
 // Returns 1 if success, returns 0 if failed
 int appendFile(FILE* fptr, const char* commandFile, Buffer* commandBuffer) {
 	fptr = fopen(commandFile, "a");
-	for(int i = 0; i < commandBuffer->size; i++) {
+	for(int i = commandBuffer->initialSize; i < commandBuffer->size; i++) {
 		fprintf(fptr, "%s", commandBuffer->arr[i]);
 	}
 	if(fclose(fptr) == 0) {
@@ -357,14 +364,19 @@ int appendFile(FILE* fptr, const char* commandFile, Buffer* commandBuffer) {
 	return 0;
 }
 
-// Loads the user's recent commands into the command buffer
-void loadCommandFileToBuffer(FILE* fptr, Buffer* commandBuffer) {
+// Loads the user's recent commands into the command buffer and set the command
+// buffers initial size to the number of commands loaded into buffer
+void loadPreviousCommands(FILE* fptr, Buffer* commandBuffer) {
 	int stringSize = 64;
 	int substringSize = 64;
 	int substringIndex;
+	int numCommandsLoaded = 0;
 	char substring[substringSize+1];
 	char* stringRet;
 	fptr = fopen(commandFile, "r");
+	if(fptr == NULL) {
+		return;
+	}
 	char c = fgetc(fptr);
 
 	// Dynamically storing user's command
@@ -388,6 +400,7 @@ void loadCommandFileToBuffer(FILE* fptr, Buffer* commandBuffer) {
 			substring[substringIndex++] = c;
 			c = fgetc(fptr);
 			} while(c != '\n');
+		numCommandsLoaded++;
 		substring[substringIndex++] = c;
 		substring[substringIndex] = '\0';
 		// Concatenate stringRet with substring
@@ -398,6 +411,7 @@ void loadCommandFileToBuffer(FILE* fptr, Buffer* commandBuffer) {
 		memset(substring, '\0', substringSize);
 		free(stringRet);
 	}
+	commandBuffer->initialSize = numCommandsLoaded;
 	fclose(fptr);
 }
 
@@ -513,6 +527,7 @@ Buffer* clearCommandBuffer(Buffer* commandBuffer){
 		free(commandBuffer->arr[i]);
 	}
 	commandBuffer->size = 0;
+	commandBuffer->initialSize = 0;
 	commandBuffer->cap = 8;
 	commandBuffer->arr = calloc(commandBuffer->cap, sizeof(char *));
 	for(int i = 0; i < commandBuffer->cap; i++) {
