@@ -139,7 +139,7 @@ int executeCommandWithArgs(char* userInput, char* command,
 	userInputIndex += index;
 	// Position userInput pointer to its first char of the original userInput
 	userInput -= (userInputIndex);
-	
+
 	// Enter shell function that contains args
 	if(strcmp(command, "movetodir") == 0) {
 		return movetodir(args);
@@ -150,13 +150,16 @@ int executeCommandWithArgs(char* userInput, char* command,
 	}else if(strcmp(command, "replay") == 0) {
 		return replay(commandBuffer, fptr, args);
 	}else if(strcmp(command, "history") == 0) {
+		// Copy userInput since clearHistory might erase memory that needs accessed in certains cases
+		char userInputCopy[userInputIndex+1];
+		strcpy(userInputCopy, userInput);
 		int historyClearedSuccessfully = clearHistory(commandBuffer, args);
 		if(historyClearedSuccessfully){
 			// Checking for errors when appending file
 			if(!clearFile(fptr, commandFile, commandBuffer)){
 				printf("Error clearing command file.\n");
 			} else {
-				appendCommandToBuffer(commandBuffer, userInput);
+				appendCommandToBuffer(commandBuffer, userInputCopy);
 				return historyClearedSuccessfully;
 			}
 		} else {
@@ -597,7 +600,7 @@ void appendCommandToBuffer(Buffer* commandBuffer, char* command) {
 	}
 
 	// commandBuffer->arr[i] has 100 chars allocated. If stringLength is > 99, reallocate
-	if(stringLength > 99) {
+	if(stringLength > 98) {
 		commandBuffer->arr[index] = (char*)realloc(commandBuffer->arr[index], (stringLength+1)*sizeof(char));
 	}
 	// Append command, increment size by 1
