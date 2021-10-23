@@ -24,7 +24,7 @@ void insideShell(FILE*, Buffer*);
 char* getUserCommand();
 int executeCommand(FILE*, Buffer*, char*);
 int executeCommandWithArgs(char*, char*, Buffer*, FILE*, int);
-int executeCommandNoArgs(char*, char*, Buffer*, FILE*);
+int executeCommandNoArgs(char*, Buffer*, FILE*);
 int doesDirectoryExists(char*);
 void printString(char*);
 char** commandDelimeter(char*);
@@ -38,11 +38,11 @@ void loadPreviousCommands(FILE*, Buffer*);
 int movetodir(char*);
 int whereami();
 int start(char*);// Need to test multiple args
-int background(char*);// Need to implement
+int background(char*, Buffer*, FILE*);// Need to implement
 int dalek(int);// Need to implement
 int printHistory(Buffer*);
 int clearHistory(Buffer*, char*);
-int replay(); // Need to implement
+int replay(Buffer*, FILE*, char*); // Need to implement
 void byebye();
 
 char* currentdir;
@@ -50,17 +50,17 @@ const char* commandFile = "recent_commands.txt";
 
 int main() {
 	// Buffer to store recent commands
-	Buffer * commandBuffer = createCommandBuffer();
-
+	Buffer * commandBuffer = createCommandBuffer();	
 	// Pointer used for file manipulation
-	FILE* fptr;	
-
+	FILE* fptr;
+	// Load previous commands from recent_commands file. Blank file will
+	// be created if one doesnt exists
+	loadPreviousCommands(fptr, commandBuffer);	
 	// Path to the current working directory
 	currentdir = getcwd(currentdir, 100);	
-
 	// Start the shell interface
 	insideShell(fptr, commandBuffer);
-	
+
 
 	// Dont forget to free memory	
 	
@@ -70,10 +70,7 @@ int main() {
 // Shell's interface
 void insideShell(FILE* fptr, Buffer* commandBuffer) {
 	int isCommandValid;
-	char* command;
-
-	// Need to create a file if one doesnt exists. right now program is crashing when no file exists.
-	loadPreviousCommands(fptr, commandBuffer);
+	char* command;	
 	
 	while(1) {
 		isCommandValid = 0;
@@ -81,8 +78,10 @@ void insideShell(FILE* fptr, Buffer* commandBuffer) {
 		command = getUserCommand();
 		appendCommandToBuffer(commandBuffer, command);
 		isCommandValid = executeCommand(fptr, commandBuffer, command);
-		if(!isCommandValid) {
+		if(isCommandValid == 0) {
 			printf("Invalid command. Please try again.\n");	
+		} else if(isCommandValid == 2) {
+			break;
 		}
 		isCommandValid = 0;
 	}
@@ -107,7 +106,7 @@ int executeCommand(FILE* fptr, Buffer* commandBuffer, char* userInput) {
 
 	//If userInput has no args, else userInput has args
 	if(*userInput == '\n') {
-		return executeCommandNoArgs(userInput, command, commandBuffer, fptr);
+		return executeCommandNoArgs(command, commandBuffer, fptr);
 	} else {
 		return executeCommandWithArgs(userInput, command, commandBuffer, fptr, userInputIndex);
 	}
@@ -146,6 +145,10 @@ int executeCommandWithArgs(char* userInput, char* command,
 		return movetodir(args);
 	}else if(strcmp(command, "start") == 0) {
 		return start(args);
+	}else if(strcmp(command, "background") == 0) {
+		return background(args, commandBuffer, fptr);
+	}else if(strcmp(command, "replay") == 0) {
+		return replay(commandBuffer, fptr, args);
 	}else if(strcmp(command, "history") == 0) {
 		int historyClearedSuccessfully = clearHistory(commandBuffer, args);
 		if(historyClearedSuccessfully){
@@ -164,8 +167,7 @@ int executeCommandWithArgs(char* userInput, char* command,
 
 // Function executes user's command that has 0 args 
 // Returns 1 on success, returns 0 on failure
-int executeCommandNoArgs(char* userInput, char* command, Buffer* commandBuffer, FILE* fptr) {
-	char** argsArray = commandDelimeter(userInput);
+int executeCommandNoArgs(char* command, Buffer* commandBuffer, FILE* fptr) {
 	// Enter shell function with no args
 	if(strcmp(command, "whereami") == 0) {
 		return whereami();
@@ -244,7 +246,7 @@ int whereami() {
 }
 
 // Starts a program with or without parameters
-// Returns 0 when child process starts, Returns 1 when child is finshed and parent is finished waiting
+// Returns 2 when child process starts, Returns 1 when child is finshed and parent is finished waiting
 // TODO: Test function with multiple args
 int start(char* command){
 	// pid uses status's value behind the scenes
@@ -283,7 +285,7 @@ int start(char* command){
 	} else if(pid == 0) {
 		// Jumps into new child process
 		execv(writableUsersArgs[0], writableUsersArgs);
-		return 0;
+		return 2;
 	} else {
 		// Waits for child process to terminate before proceeding
 		wait(&status);
@@ -293,9 +295,53 @@ int start(char* command){
 
 // TODO: Implement function
 // Similar to the start command, but it immediately prints the PID of the program it 
-// started, and returns the prompt. Returns 1 on successful start, 0 on failure
-int background(char* command) {
-	return 0;
+// started, and returns the prompt. 
+// Returns 2 when child process starts, Returns 3 when child is finshed and parent is finished waiting
+int background(char* command, Buffer* commandBuffer, FILE* fptr) {
+	// pid uses status's value behind the scenes
+	int status;
+	int maxArgLength = 0;
+	int argLength = 0;
+	int index;
+
+	// Split the user's command into seperate strings wherever the command has spaces
+	char** usersArgs = commandDelimeter(command);
+	int numberArgs = countArgs(command);
+	// Calculate maxArgLength to allocate correct amount of memory
+	for(index = 0; index < numberArgs; index++) {
+		argLength = countLongestArg(usersArgs[index]);
+		if(argLength > maxArgLength) {
+			maxArgLength = argLength;
+		}
+	}
+	// Allocate memory for the array that gets passed to exec() function
+	char* writableUsersArgs[numberArgs+1];
+	for(index = 0; index < numberArgs + 1; index++) {
+		writableUsersArgs[index] = (char*)malloc(maxArgLength*sizeof(char));
+	}
+	// Copy the strings from the read only array to a writable array of strings
+	for(index = 0; index < numberArgs; index++) {
+		strcpy(writableUsersArgs[index], usersArgs[index]);
+	}
+	// Last entry of array must be NULL for exec() function to work properly
+	writableUsersArgs[index] = NULL;
+	
+	// Create a child process
+	pid_t pid = fork();
+	if(pid == -1) {
+		printf("Error forking");
+		return -1;
+	} else if(pid == 0) {
+		// Jumps into new child process
+		execv(writableUsersArgs[0], writableUsersArgs);
+		return 1;
+	} else {
+		// Waits for child process to terminate before proceeding
+		printf("PID = %d\n", pid);
+		insideShell(fptr, commandBuffer);
+		wait(&status);
+		return 2;
+	}
 }
 
 // TODO: Implement function
@@ -308,8 +354,13 @@ int dalek(int pid){
 // TODO: Implement function 
 // Re-executes the command labeled with its number in the history 
 // Returns 1 on succesful execution, 0 on failure
-int replay() {
-	return 0;
+int replay(Buffer* commandBuffer, FILE* fptr, char* args) {
+	int commandIndex = atoi(args);
+	// Index shown to user is in reverse order of arraylist in order to print most recent commands
+	// Move to the actual index
+	printf("Size = %d\n", commandBuffer->size);
+	commandIndex = (commandBuffer->size - commandIndex) - 2;
+	return executeCommand(fptr, commandBuffer, commandBuffer->arr[commandIndex]);
 }
 
 // Returns 1 on printing command history successfully, return 0 on failure
