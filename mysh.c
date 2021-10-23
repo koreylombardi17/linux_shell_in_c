@@ -42,7 +42,7 @@ int background(char*, Buffer*, FILE*);// Need to implement
 int dalek(int);// Need to implement
 int printHistory(Buffer*);
 int clearHistory(Buffer*, char*);
-int replay(Buffer*, FILE*, char*); // Need to implement
+int replay(Buffer*, FILE*, char*);
 void byebye();
 
 char* currentdir;
@@ -351,14 +351,12 @@ int dalek(int pid){
 	return 0;
 }
 
-// TODO: Implement function 
 // Re-executes the command labeled with its number in the history 
 // Returns 1 on succesful execution, 0 on failure
 int replay(Buffer* commandBuffer, FILE* fptr, char* args) {
 	int commandIndex = atoi(args);
 	// Index shown to user is in reverse order of arraylist in order to print most recent commands
 	// Move to the actual index
-	printf("Size = %d\n", commandBuffer->size);
 	commandIndex = (commandBuffer->size - commandIndex) - 2;
 	return executeCommand(fptr, commandBuffer, commandBuffer->arr[commandIndex]);
 }
