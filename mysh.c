@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+//#include <signal.h>
 #include <sys/wait.h> 
 
 typedef struct Buffer Buffer;
@@ -39,14 +40,15 @@ int movetodir(char*);
 int whereami();
 int start(char*);// Need to test multiple args
 int background(char*, Buffer*, FILE*);// Need to implement
-int dalek(int);// Need to implement
+//int dalek(char*);// Need to implement
 int printHistory(Buffer*);
 int clearHistory(Buffer*, char*);
 int replay(Buffer*, FILE*, char*);
 void byebye();
 
 char* currentdir;
-const char* commandFile = "recent_commands.txt";
+//const char* commandFile = getcwd(currentdir, 100) + "recent_commands.txt";
+const char* commandFile = "/home/pi/Desktop/c/hw2/linux_shell_in_c/recent_commands.txt";
 
 int main() {
 	// Buffer to store recent commands
@@ -56,8 +58,13 @@ int main() {
 	// Load previous commands from recent_commands file. Blank file will
 	// be created if one doesnt exists
 	loadPreviousCommands(fptr, commandBuffer);	
+	
 	// Path to the current working directory
-	currentdir = getcwd(currentdir, 100);	
+	currentdir = getcwd(currentdir, 100);
+
+	printf("%s\n", commandFile);
+
+
 	// Start the shell interface
 	insideShell(fptr, commandBuffer);
 
@@ -165,7 +172,10 @@ int executeCommandWithArgs(char* userInput, char* command,
 		} else {
 			return 0;
 		}
-	}
+	} 
+	//else if(strcmp(command, "dalek") == 0) {
+		//return dalek(args);
+	//}
 }
 
 // Function executes user's command that has 0 args 
@@ -350,9 +360,16 @@ int background(char* command, Buffer* commandBuffer, FILE* fptr) {
 // TODO: Implement function
 // Immediately terminate the program with the specific PID
 // Returns 1 on successfull kill, returns 0 on failure
-int dalek(int pid){
-	return 0;
-}
+//int dalek(char* pidStr){
+//	int pid = atoi(pidStr);
+//	if(kill(pid, SIGKILL) == 0) {
+//		printf("Kill successful.\n");
+//		return 1;
+//	} else {
+//		printf("Kill failed.\n");
+//		return 0;
+//	}
+//}
 
 // Re-executes the command labeled with its number in the history 
 // Returns 1 on succesful execution, 0 on failure
@@ -429,7 +446,8 @@ void loadPreviousCommands(FILE* fptr, Buffer* commandBuffer) {
 	if(fptr == NULL) {
 		return;
 	}
-	char c = fgetc(fptr);
+	// Has to be signed char or it can cause seg fault depending on the system 
+	signed char c = fgetc(fptr);
 
 	// Dynamically storing user's command
 	while(c != EOF) {
