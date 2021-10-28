@@ -559,6 +559,9 @@ int countLongestArg(char* command) {
 			argLength++;
 		}
 	}
+	if(argLength > maxArgLength) {
+		maxArgLength = argLength;
+	}
 	// +1 for NULL character value at end of string
 	return (maxArgLength+1);
 }
