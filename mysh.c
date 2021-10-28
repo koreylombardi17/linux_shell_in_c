@@ -303,7 +303,7 @@ int start(char* command){
 // TODO: Implement function
 // Similar to the start command, but it immediately prints the PID of the program it 
 // started, and returns the prompt. 
-// Returns 2 when child process starts, Returns 3 when child is finshed and parent is finished waiting
+// Returns 2 when child process starts, Returns 1 when child is finshed and parent is finished waiting
 int background(char* command, Buffer* commandBuffer, FILE* fptr) {
 	// pid uses status's value behind the scenes
 	int status;
@@ -341,13 +341,11 @@ int background(char* command, Buffer* commandBuffer, FILE* fptr) {
 	} else if(pid == 0) {
 		// Jumps into new child process
 		execv(writableUsersArgs[0], writableUsersArgs);
-		return 1;
-	} else {
-		// Waits for child process to terminate before proceeding
-		printf("PID = %d\n", pid);
-		insideShell(fptr, commandBuffer);
-		wait(&status);
 		return 2;
+	} else {
+		// Does not wait for the child process to finish
+		printf("PID = %d\n", pid);
+		return 1;
 	}
 }
 
