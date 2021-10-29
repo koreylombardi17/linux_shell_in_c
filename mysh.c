@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-//#include <signal.h>
 #include <sys/wait.h> 
 
 typedef struct Buffer Buffer;
@@ -15,6 +14,7 @@ typedef struct Buffer {
 
 // Data structure prototypes
 Buffer * createCommandBuffer();
+void freeCommandBuffer(Buffer*);
 Buffer* clearCommandBuffer(Buffer*);
 void appendCommandToBuffer(Buffer*, char*);
 void expandCommandBuffer(Buffer*);
@@ -44,7 +44,7 @@ int dalek(char*);
 int printHistory(Buffer*);
 int clearHistory(Buffer*, char*);
 int replay(Buffer*, FILE*, char*);
-void byebye();
+int byebye();
 
 char* currentdir;
 const char* commandFile = "recent_commands.txt";
@@ -64,7 +64,9 @@ int main() {
 
 
 	// Dont forget to free memory	
-	
+	free(currentdir);
+	freeCommandBuffer(commandBuffer);
+
 	return 0;
 }
 
@@ -79,9 +81,10 @@ void insideShell(FILE* fptr, Buffer* commandBuffer) {
 		command = getUserCommand();
 		appendCommandToBuffer(commandBuffer, command);
 		isCommandValid = executeCommand(fptr, commandBuffer, command);
+		free(command);
 		if(isCommandValid == 0) {
 			printf("Invalid command. Please try again.\n");	
-		} else if(isCommandValid == 2) {
+		} else if(isCommandValid == 2  || isCommandValid == -1) {
 			break;
 		}
 		isCommandValid = 0;
@@ -185,10 +188,10 @@ int executeCommandNoArgs(char* command, Buffer* commandBuffer, FILE* fptr) {
 		if(!appendFile(fptr, commandFile, commandBuffer)) {
 			// Print error message and exit shell
 			printf("Error writing recent commands to file.\n");
-			byebye();
+			return byebye();
 		}
 		// Exit the shell
-		byebye();
+		return byebye();
 	}
 	return 0;
 }
@@ -296,14 +299,18 @@ int start(char* command){
 	} else {
 		// Waits for child process to terminate before proceeding
 		wait(&status);
+		for(index = 0; index < numberArgs + 1; index++) {
+			free(usersArgs[index]);
+			free(writableUsersArgs[index]);
+		}
+		free(usersArgs);
 		return 1;
 	}
 }
 
-// TODO: Implement function
 // Similar to the start command, but it immediately prints the PID of the program it 
 // started, and returns the prompt. 
-// Returns 2 when child process starts, Returns 1 when child is finshed and parent is finished waiting
+// Returns 2 when child process starts, Returns 1 when child is running and program returns the prompt
 int background(char* command, Buffer* commandBuffer, FILE* fptr) {
 	// pid uses status's value behind the scenes
 	int status;
@@ -344,7 +351,11 @@ int background(char* command, Buffer* commandBuffer, FILE* fptr) {
 		return 2;
 	} else {
 		// Does not wait for the child process to finish
-		printf("PID = %d\n", pid);
+		for(index = 0; index < numberArgs + 1; index++) {
+			free(usersArgs[index]);
+			free(writableUsersArgs[index]);
+		}
+		free(usersArgs);
 		return 1;
 	}
 }
@@ -396,9 +407,9 @@ int clearHistory(Buffer* commandBuffer, char* arg) {
 	return 1;
 }
 
-// Exits the shell
-void byebye() {
-	exit(0);
+// Returns -1 so isCommandValid can alert shell to exit
+int byebye() {
+	return -1;
 }
 
 // Deletes any prior text contained in the file. If no file, it will create one.
@@ -497,7 +508,8 @@ char** commandDelimeter(char* inputCommand) {
 	// Calculate the max length of all the args 
 	int maxArgLength = countLongestArg(inputCommand);
 	// Function allocates the array's memory based on the number of args and the max arg length
-	char** usersArgs = createArgsArray(numberArgs, maxArgLength);
+	// + 1 accounts for the NULL entry that goes at the end
+	char** usersArgs = createArgsArray(numberArgs+1, maxArgLength);
 	// Pointer used to iterate through through command stopping at all spaces
 	char* token = strtok(writableCommand, " ");
 	
@@ -566,9 +578,9 @@ int countLongestArg(char* command) {
 
 // Function allocates memory for array of args
 char** createArgsArray(int numberArgs, int maxArgLength) {
-	char** argsArray = (char**)malloc(numberArgs * sizeof(char*));
+	char** argsArray = calloc(numberArgs, sizeof(char*));
 	for(int i = 0; i < numberArgs; i++) {
-		argsArray[i] = (char*)malloc(maxArgLength*sizeof(char));
+		argsArray[i] = calloc(maxArgLength, sizeof(char));
 	}
 	return argsArray;
 }
@@ -583,6 +595,14 @@ Buffer* createCommandBuffer() {
 		ret->arr[i] = calloc(100, sizeof(char));
 	}
 	return ret;
+}
+
+void freeCommandBuffer(Buffer* commandBuffer) {
+	for(int i = 0; i < commandBuffer->cap; i++) {
+		free(commandBuffer->arr[i]);
+	}
+	free(commandBuffer->arr);	
+	free(commandBuffer);
 }
 
 // Clears the command buffer
