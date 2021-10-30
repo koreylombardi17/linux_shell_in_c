@@ -38,8 +38,8 @@ void loadPreviousCommands(FILE*, Buffer*);
 // Shell command prototypes
 int movetodir(char*);
 int whereami();
-int start(char*);// Need to test multiple args
-int background(char*, Buffer*, FILE*);// Need to implement
+int start(char*);
+int background(char*, Buffer*, FILE*);
 int dalek(char*);
 int printHistory(Buffer*);
 int clearHistory(Buffer*, char*);
@@ -61,12 +61,9 @@ int main() {
 	currentdir = getcwd(currentdir, 100);
 	// Start the shell interface
 	insideShell(fptr, commandBuffer);
-
-
 	// Free memory	
 	free(currentdir);
 	freeCommandBuffer(commandBuffer);
-
 	return 0;
 }
 
@@ -257,7 +254,6 @@ int whereami() {
 
 // Starts a program with or without parameters
 // Returns 2 when child process starts, Returns 1 when child is finshed and parent is finished waiting
-// TODO: Test function with multiple args
 int start(char* command){
 	// pid uses status's value behind the scenes
 	int status;
@@ -351,7 +347,7 @@ int background(char* command, Buffer* commandBuffer, FILE* fptr) {
 		return 2;
 	} else {
 		// Does not wait for the child process to finish
-		for(index = 0; index < numberArgs + 1; index++) {
+		for(index = 0; index < numberArgs; index++) {
 			free(usersArgs[index]);
 			free(writableUsersArgs[index]);
 		}
