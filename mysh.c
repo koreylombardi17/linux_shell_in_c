@@ -63,7 +63,7 @@ int main() {
 	insideShell(fptr, commandBuffer);
 
 
-	// Dont forget to free memory	
+	// Free memory	
 	free(currentdir);
 	freeCommandBuffer(commandBuffer);
 
@@ -277,7 +277,7 @@ int start(char* command){
 	}
 	// Allocate memory for the array that gets passed to exec() function
 	char* writableUsersArgs[numberArgs+1];
-	for(index = 0; index < numberArgs + 1; index++) {
+	for(index = 0; index < numberArgs; index++) {
 		writableUsersArgs[index] = (char*)malloc(maxArgLength*sizeof(char));
 	}
 	// Copy the strings from the read only array to a writable array of strings
@@ -299,7 +299,7 @@ int start(char* command){
 	} else {
 		// Waits for child process to terminate before proceeding
 		wait(&status);
-		for(index = 0; index < numberArgs + 1; index++) {
+		for(index = 0; index < numberArgs; index++) {
 			free(usersArgs[index]);
 			free(writableUsersArgs[index]);
 		}
@@ -330,7 +330,7 @@ int background(char* command, Buffer* commandBuffer, FILE* fptr) {
 	}
 	// Allocate memory for the array that gets passed to exec() function
 	char* writableUsersArgs[numberArgs+1];
-	for(index = 0; index < numberArgs + 1; index++) {
+	for(index = 0; index < numberArgs; index++) {
 		writableUsersArgs[index] = (char*)malloc(maxArgLength*sizeof(char));
 	}
 	// Copy the strings from the read only array to a writable array of strings
@@ -455,6 +455,7 @@ void loadPreviousCommands(FILE* fptr, Buffer* commandBuffer) {
 	while(c != EOF) {
 		substringIndex = 0;
 		stringRet = (char*)malloc(stringSize*sizeof(char));
+		memset(stringRet, '\0', stringSize);
 		do {
 			// Case when substring memory is full
 			// Append substring to string and clear substring's memory
@@ -509,7 +510,7 @@ char** commandDelimeter(char* inputCommand) {
 	int maxArgLength = countLongestArg(inputCommand);
 	// Function allocates the array's memory based on the number of args and the max arg length
 	// + 1 accounts for the NULL entry that goes at the end
-	char** usersArgs = createArgsArray(numberArgs+1, maxArgLength);
+	char** usersArgs = createArgsArray(numberArgs, maxArgLength);
 	// Pointer used to iterate through through command stopping at all spaces
 	char* token = strtok(writableCommand, " ");
 	
@@ -533,9 +534,6 @@ char** commandDelimeter(char* inputCommand) {
 		}
 		i = 0;
 	}
-
-	// exec() requires NULL as last value of array
-	usersArgs[argsIndex] = NULL;
 	return usersArgs;
 }
 
@@ -613,7 +611,6 @@ Buffer* clearCommandBuffer(Buffer* commandBuffer){
 	commandBuffer->size = 0;
 	commandBuffer->initialSize = 0;
 	commandBuffer->cap = 8;
-	commandBuffer->arr = calloc(commandBuffer->cap, sizeof(char *));
 	for(int i = 0; i < commandBuffer->cap; i++) {
 		commandBuffer->arr[i] = calloc(100, sizeof(char));
 	}
@@ -633,7 +630,10 @@ void appendCommandToBuffer(Buffer* commandBuffer, char* command) {
 
 	// commandBuffer->arr[i] has 100 chars allocated. If stringLength is > 99, reallocate
 	if(stringLength > 98) {
-		commandBuffer->arr[index] = (char*)realloc(commandBuffer->arr[index], (stringLength+1)*sizeof(char));
+		char* newArr = (char*)realloc(commandBuffer->arr[index], (stringLength+1)*sizeof(char));
+		if(newArr != NULL) {
+			commandBuffer->arr[index] = newArr;
+		}
 	}
 	// Append command, increment size by 1
 	strcpy(commandBuffer->arr[index], command);
@@ -643,9 +643,13 @@ void appendCommandToBuffer(Buffer* commandBuffer, char* command) {
 // Reallocate memory by a multiple of two
 void expandCommandBuffer(Buffer* commandBuffer) {
     commandBuffer->cap = commandBuffer->cap * 2;
-	commandBuffer->arr = realloc(commandBuffer->arr, commandBuffer->cap * sizeof(char *));
+	char** newArr = realloc(commandBuffer->arr, commandBuffer->cap * sizeof(char *));
 	for(int i = commandBuffer->size; i < commandBuffer->cap; i++) {
-		commandBuffer->arr[i] = calloc(100, sizeof(char));
+		newArr[i] = calloc(100, sizeof(char));
+	}
+	if(newArr != NULL) {
+		//free(commandBuffer->arr);
+		commandBuffer->arr = newArr;
 	}
 }
 
